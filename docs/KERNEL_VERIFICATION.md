@@ -10,22 +10,22 @@
 
 ## 调度归属
 
-`source/core/main.c` 的模块表同时声明初始化、销毁、任务、`policy`、`priority` 和 `cpus`；不再维护独立调度表或全局固定策略，创建属性直接读取对应行。当前线程行均为 `SCHED_FIFO`。线程从入口执行前就具备指定优先级，创建失败返回错误。各模块不再修改调度策略或自行绑核；HTTP 和推理模块继续管理内部线程的创建时机与回收。没有恢复入口包装层。
+`source/core/main.c` 的模块表同时声明初始化、销毁、任务、`policy`、`priority`、`cpus` 以及可选的 deadline 预算（`runtime/deadline/period`）；不再维护独立调度表或全局固定策略，创建属性直接读取对应行。2026-11-05 起相机采集线程选择 `SCHED_DEADLINE`（2000/34000/34000 µs），其余线程仍为 `SCHED_FIFO`；deadline 需覆盖整个 root domain 的亲和性，因此该行使用 `ALL` 分组，申请失败时回退到表中的 FIFO 优先级。线程从入口执行前就具备指定策略与优先级，创建失败返回错误。各模块不再修改调度策略或自行绑核；HTTP 和推理模块继续管理内部线程的创建时机与回收。没有恢复入口包装层。
 
-| 线程 | FIFO 优先级 | CPU 分组 |
-| --- | ---: | --- |
-| main、TCP、HTTP reactor | 5 | LITTLE |
-| HTTP worker、推理日报 | 1 | LITTLE |
-| 图像解码、渲染、录像与编码器辅助线程 | 10 | BIG |
-| NPU 推理 worker | 12 | BIG |
-| 相机采集 | 15 | BIG |
-| CAN 收发 | 15 | LITTLE |
-| 跟随控制 | 20 | LITTLE |
-| 看门狗 | 30 | LITTLE |
+| 线程 | 策略与优先级 | CPU 分组 |
+| --- | --- | --- |
+| main、TCP、HTTP reactor | FIFO 5 | LITTLE |
+| HTTP worker、推理日报 | FIFO 1 | LITTLE |
+| 图像解码、渲染、录像 | FIFO 10 | BIG |
+| NPU 推理 worker | FIFO 12 | BIG |
+| 相机采集 | DEADLINE 2000/34000/34000 µs | ALL |
+| CAN 收发 | FIFO 15 | LITTLE |
+| 跟随控制 | FIFO 20 | LITTLE |
+| 看门狗 | FIFO 30 | LITTLE |
 
-`cpus` 通过 CPU 能力或最高频率自动发现分组，先保存完整初始允许集合，再绑定 main；普通工作线程在创建前通过属性绑定，不增加入口包装层。当前设备 BIG 为 CPU4–7，LITTLE 为 CPU0–3；源码不硬编码核心编号。非线程行的 `policy=-1` 防止误创建；有效策略允许优先级为 0 的 `SCHED_OTHER`，`CPU_INHERIT` 可保留父线程掩码。
+`cpus` 通过 CPU 能力或最高频率自动发现分组，先保存完整初始允许集合，再绑定 main；普通工作线程在创建前通过属性绑定，不增加入口包装层。当前设备 BIG 为 CPU4–7，LITTLE 为 CPU0–3，`ALL` 为完整初始允许集合 CPU0–7；源码不硬编码核心编号。非线程行的 `policy=-1` 防止误创建；有效策略允许优先级为 0 的 `SCHED_OTHER`，`CPU_INHERIT` 可保留父线程掩码。`SCHED_DEADLINE` 的准入要求任务亲和性覆盖整个 root domain，绑核会直接返回 `EPERM`，因此只允许搭配 `ALL`。
 
-JPEG 解码与编码在解码、渲染线程内同步执行。OpenCV 初始化时设为单线程，避免库线程池绕开调用线程的调度属性；libx264 辅助线程继承录像线程的 FIFO 10。本机实测录像线程加编码器辅助线程共 9 个，逐个查询系统调度属性确认。
+JPEG 解码在解码、渲染线程内同步执行。OpenCV 初始化时设为单线程，避免库线程池绕开调用线程的调度属性。历史上录像经 libx264 软件编码，其辅助线程继承录像线程的 FIFO 10，本机实测共 9 个线程；`0753d80` 之后录像改为相机原生 MJPEG 直封 AVI，编码器与辅助线程均已移除，该记录仅保留为历史。
 
 ## 重启兼容问题
 
