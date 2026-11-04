@@ -2458,7 +2458,11 @@ static int rkvenc_init(struct mpp_dev *mpp)
 #else
 	/*
 	 * Firmware/assigned-clocks must establish a valid fixed rate and voltage.
-	 * Do not change a clock without the vendor OPP regulator hook.
+	 * Do not change a clock without the vendor OPP regulator hook: this port is
+	 * built without CONFIG_ROCKCHIP_MPP_VENDOR_DEVFREQ, and the mainline RK3576
+	 * device tree carries neither an operating-points-v2 table nor a regulator
+	 * for the encoder, so any frequency change would be unbacked by a voltage
+	 * step. The rates below are what assigned-clock-rates programmed at probe.
 	 */
 	enc->aclk_info.real_rate_hz = clk_get_rate(enc->aclk_info.clk);
 	enc->hclk_info.real_rate_hz = clk_get_rate(enc->hclk_info.clk);
@@ -2467,7 +2471,8 @@ static int rkvenc_init(struct mpp_dev *mpp)
 	    !enc->core_clk_info.real_rate_hz)
 		return dev_err_probe(mpp->dev, -EINVAL, "fixed encoder clock rate is zero\n");
 	mpp->auto_freq_en = 0;
-	dev_info(mpp->dev, "fixed clocks: aclk=%u hclk=%u core=%u Hz; vendor DVFS disabled\n",
+	/* State the design, not a fault: the clocks stay at the DT-assigned rates. */
+	dev_info(mpp->dev, "assigned clocks: aclk=%u hclk=%u core=%u Hz (fixed; no OPP/DVFS)\n",
 		 enc->aclk_info.real_rate_hz, enc->hclk_info.real_rate_hz,
 		 enc->core_clk_info.real_rate_hz);
 #endif

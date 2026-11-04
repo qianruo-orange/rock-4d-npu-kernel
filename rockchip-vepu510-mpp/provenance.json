@@ -72,7 +72,7 @@
     },
     {
       "path": "module/mpp_rkvenc2.c",
-      "sha256": "3948d95dcf3ddd06cc65d419c8f7584d0d873a29b3ca4d80131982954cf6feac",
+      "sha256": "8b905bfe75f37d8c650c5a3019d14c2d3f67089789512fff0611a73ea460080c",
       "origin": {
         "kind": "rockchip-linux/kernel",
         "path": "drivers/video/rockchip/mpp/mpp_rkvenc2.c",
