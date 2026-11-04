@@ -1,1 +1,4 @@
 *.patch -whitespace
+*.pdf binary
+# Preserve archived vendor bytes, including their original whitespace.
+legacy/** -whitespace

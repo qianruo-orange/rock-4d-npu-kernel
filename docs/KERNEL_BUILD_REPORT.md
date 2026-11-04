@@ -2,9 +2,9 @@
 
 > 历史报告：本文记录 2026 年 11 月 2 日的 7.3 构建。当前系统已切换至 7.4-rc1，旧内核与回退载荷已按用户要求清理；当前状态和目录见 [7.4 适配说明](../rock4d-linux74/README.md)。
 
-文档日期：2026 年 11 月 2 日（Asia/Shanghai）  
-工程：autonomous-driving-car  
-设备：Radxa ROCK 4D，Rockchip RK3576，ARM64  
+文档日期：2026 年 11 月 2 日（Asia/Shanghai）
+工程：autonomous-driving-car
+设备：Radxa ROCK 4D，Rockchip RK3576，ARM64
 范围：已完成的 Linux 7.3.0-npu-rt 构建、Kiln NPU 适配、安装启动与应用实时调度验证。
 
 ## 1. 交付结果

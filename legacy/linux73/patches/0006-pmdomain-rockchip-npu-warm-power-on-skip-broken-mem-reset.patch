@@ -1,0 +1,77 @@
+From b1c0ffee5a5e4c0de0a0b0c0d0e0f00112233445 Mon Sep 17 00:00:00 2001
+From: Jiaxing Hu <huhuvmb88@outlook.com>
+Date: Mon, 7 Jul 2026 12:00:00 +1200
+Subject: [PATCH] pmdomain/rockchip: make NPU mem_reset status polls best-effort
+
+On RK3576 the NPU power domains' mem_reset() status polls can time out on a
+warm power-on and abort the whole power-on with -110, which makes the vendor
+rknpu driver read an unpowered core and take an async SError. Make the three
+status polls best-effort (warn, don't abort) and return 0, so a flaky poll
+never turns into a board-killing -110. (The actual warm-vs-cold arming is
+handled in the rknpu driver's power keep-alive; this is the safety net.)
+
+Signed-off-by: Jiaxing Hu <huhuvmb88@outlook.com>
+---
+ drivers/pmdomain/rockchip/pm-domains.c | 34 ++++++++++++++++----------
+ 1 file changed, 21 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/pmdomain/rockchip/pm-domains.c b/drivers/pmdomain/rockchip/pm-domains.c
+index 1787f62ba..2c3d4e5f6 100644
+--- a/drivers/pmdomain/rockchip/pm-domains.c
++++ b/drivers/pmdomain/rockchip/pm-domains.c
+@@ -542,12 +542,10 @@
+ 
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_chain_on, pd, is_on,
+ 					is_on == true, 0, 10000);
+-	if (ret) {
+-		dev_err(pmu->dev,
+-			"failed to get chain status '%s', target_on=1, val=%d\n",
+-			genpd->name, is_on);
+-		goto error;
+-	}
++	if (ret)
++		dev_warn_ratelimited(pmu->dev,
++			"chain status '%s' not ready, resetting mem anyway\n",
++			genpd->name);
+ 
+ 	udelay(20);
+ 
+@@ -557,12 +555,10 @@
+ 
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_mem_on, pd, is_on,
+ 					is_on == false, 0, 10000);
+-	if (ret) {
+-		dev_err(pmu->dev,
+-			"failed to get mem status '%s', target_on=0, val=%d\n",
+-			genpd->name, is_on);
+-		goto error;
+-	}
++	if (ret)
++		dev_warn_ratelimited(pmu->dev,
++			"mem status '%s' stuck on during reset, continuing\n",
++			genpd->name);
+ 
+ 	regmap_write(pmu->regmap, pmu->info->mem_pwr_offset + pd->info->pwr_offset,
+ 		     pd->info->pwr_w_mask);
+@@ -570,14 +566,12 @@
+ 
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_mem_on, pd, is_on,
+ 					is_on == true, 0, 10000);
+-	if (ret) {
+-		dev_err(pmu->dev,
+-			"failed to get mem status '%s', target_on=1, val=%d\n",
+-			genpd->name, is_on);
+-	}
++	if (ret)
++		dev_warn_ratelimited(pmu->dev,
++			"mem status '%s' not back on after reset, continuing\n",
++			genpd->name);
+ 
+-error:
+-	return ret;
++	return 0;
+ }
+ 
+ static int rockchip_do_pmu_set_power_domain(struct rockchip_pm_domain *pd,
+--
+2.43.0

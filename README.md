@@ -23,6 +23,7 @@ VEPU510 第一版已生成可独立软件解码的 H.264 I/P 帧，包括 180 �
 | [scripts/vepu510](scripts/vepu510/README.md) | 当前独立版本的构建、安装与硬件验证入口 |
 | [docs/KERNEL_VERIFICATION.md](docs/KERNEL_VERIFICATION.md) | 历史内核及应用实时调度验证记录 |
 | [docs/KERNEL_BUILD_REPORT.md](docs/KERNEL_BUILD_REPORT.md) | 中文历史内核报告，附 [PDF](docs/pdf/KERNEL_BUILD_REPORT_ZH.pdf) |
+| `legacy/linux73/` | 原内核仓库的 7.3 资料归档；历史脚本不用于当前构建或安装 |
 
 历史报告记录当时的版本和测量，不替代当前候选的验收。当前构建日志、输入 SHA-256、安装备份及测试输出保留在 kbuild 工作目录。
 
