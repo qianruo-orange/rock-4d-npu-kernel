@@ -1,0 +1,117 @@
+Subject: [PATCH] kiln-rknpu: pin the RK3576 NPU clock and rail
+
+DVFS is compiled out for this port (rknpu_devfreq.o is not built), so
+rknpu_power_on() pinned 594 MHz on every power-up and never touched the
+supply rail. The board device tree names that rail "npu-supply", while the
+vendor driver looks up "rknpu-supply", so the regulator was not bound at
+all and the voltage stayed at the bootloader default.
+
+Add npu_freq_mhz and npu_volt_mv module parameters, fall back to the board's
+npu-supply name, and raise the rail before raising the clock so the NPU is
+never clocked faster than its voltage supports. The compiled defaults pin
+1188 MHz at 950 mV, the maximum of vdd_npu_s0.
+
+Measured on the ROCK 4D with yolo26n: NPU run 34.8 -> 22.2 ms, delivered
+inference 10 -> 29 fps, end-to-end 73.8 -> 63 ms, NPU 55 -> 65 C.
+
+Caveat: 1188 MHz is outside the device tree OPP table (300-800 MHz) and
+950 mV is the rail maximum, so the defaults are an overclock. Detection
+accuracy at this clock has not been compared against the documented
+operating points. Pass npu_freq_mhz=800 npu_volt_mv=0 to return to them.
+
+Applies to the Kiln rknpu package root after fetch-vendor-driver.sh and the
+mainline shims.
+
+---
+--- a/driver/rknpu/rknpu_drv.c
++++ b/driver/rknpu/rknpu_drv.c
+@@ -72,6 +72,22 @@
+ MODULE_PARM_DESC(bypass_soft_reset,
+ 		 "bypass RKNPU soft reset if set it to 1, disabled by default");
+ 
++/* DVFS is compiled out (rknpu_devfreq.o is not built), so the NPU runs at one
++ * fixed rate. The clock tree offers discrete steps (594 / 786.4 / 1188 MHz);
++ * 1188 MHz measurably beats the in-spec 800 MHz OPP, at the cost of running the
++ * NPU outside its documented operating points. 0 keeps the vendor 594 MHz. */
++static int npu_freq_mhz = 1200;
++module_param(npu_freq_mhz, int, 0644);
++MODULE_PARM_DESC(npu_freq_mhz,
++		 "fixed NPU compute clock in MHz; 0 keeps the vendor 594 MHz");
++
++/* Rail voltage, pinned at the vdd_npu_s0 maximum (550-950 mV). 0 would derive
++ * it from npu_freq_mhz instead. */
++static int npu_volt_mv = 950;
++module_param(npu_volt_mv, int, 0644);
++MODULE_PARM_DESC(npu_volt_mv,
++		 "fixed NPU rail in mV (550-950), default 950; 0 derives it from npu_freq_mhz");
++
+ static const struct rknpu_irqs_data rknpu_irqs[] = {
+ 	{ "npu_irq", rknpu_core0_irq_handler }
+ };
+@@ -1062,14 +1078,36 @@
+ 	 * KILN: with devfreq off, nothing sets the NPU compute clock, so
+ 	 * CLK_RKNN_DSU0 (clks[0]) sits at the low CRU power-on default and a large
+ 	 * matmul cannot finish within the 6s job timeout (task_counter stays 0).
+-	 * Pin a clean GPLL-derived rate (594 MHz = 1188/2) on every power-up and log
+-	 * the resulting rates for bring-up.
++	 *
++	 * Pin the rate from npu_freq_mhz on every power-up. The voltage must follow
++	 * the clock: the RK3576 OPP table asks for 725 mV up to 700 MHz and 800 mV
++	 * at 800 MHz, so raising the clock alone would run the NPU undervolted.
++	 * Board DT names this rail "npu-supply" (vdd_npu_s0, 550-950 mV).
+ 	 */
+-	clk_set_rate(rknpu_dev->clks[0].clk, 594000000);
+-	LOG_DEV_INFO(dev, "kiln clk: dsu0=%lu aclk0=%lu aclk1=%lu\n",
++	if (npu_freq_mhz > 0) {
++		unsigned long hz = (unsigned long)npu_freq_mhz * 1000000UL;
++		unsigned int uv = npu_volt_mv > 0
++					  ? (unsigned int)npu_volt_mv * 1000u
++					  : (npu_freq_mhz >= 800 ? 800000u : 725000u);
++
++		if (uv > 950000u) uv = 950000u;
++		if (uv < 550000u) uv = 550000u;
++		if (rknpu_dev->vdd) {
++			int vret = regulator_set_voltage(rknpu_dev->vdd, uv, uv);
++
++			if (vret)
++				LOG_DEV_ERROR(dev, "kiln: vdd %u uV rejected: %d\n",
++					      uv, vret);
++		}
++		clk_set_rate(rknpu_dev->clks[0].clk, hz);
++	} else {
++		clk_set_rate(rknpu_dev->clks[0].clk, 594000000);
++	}
++	LOG_DEV_INFO(dev, "kiln clk: dsu0=%lu aclk0=%lu aclk1=%lu vdd=%d mV\n",
+ 		     clk_get_rate(rknpu_dev->clks[0].clk),
+ 		     clk_get_rate(rknpu_dev->clks[1].clk),
+-		     clk_get_rate(rknpu_dev->clks[2].clk));
++		     clk_get_rate(rknpu_dev->clks[2].clk),
++		     rknpu_dev->vdd ? regulator_get_voltage(rknpu_dev->vdd) / 1000 : -1);
+ #endif
+ 
+ #ifndef FPGA_PLATFORM
+@@ -1514,6 +1552,24 @@
+ 		rknpu_dev->vdd = NULL;
+ 	}
+ 
++	/* KILN: the ROCK 4D device tree names this rail "npu-supply" (vdd_npu_s0),
++	 * so the vendor "rknpu" lookup above finds nothing and the driver never
++	 * touches the voltage. Accept the board name as well. */
++	if (!rknpu_dev->vdd) {
++		rknpu_dev->vdd = devm_regulator_get_optional(dev, "npu");
++		if (IS_ERR(rknpu_dev->vdd)) {
++			if (PTR_ERR(rknpu_dev->vdd) != -ENODEV) {
++				ret = PTR_ERR(rknpu_dev->vdd);
++				LOG_DEV_ERROR(
++					dev,
++					"failed to get npu vdd regulator: %d\n",
++					ret);
++				return ret;
++			}
++			rknpu_dev->vdd = NULL;
++		}
++	}
++
+ 	rknpu_dev->mem = devm_regulator_get_optional(dev, "mem");
+ 	if (IS_ERR(rknpu_dev->mem)) {
+ 		if (PTR_ERR(rknpu_dev->mem) != -ENODEV) {

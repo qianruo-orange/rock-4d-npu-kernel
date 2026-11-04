@@ -24,8 +24,13 @@
 | `0002-jpeg-dt.patch` | 内核根目录，在 0001 之后；连接 JPEG Kbuild 与设备树，驱动文件取自本仓库的 `rockchip-jpegd` |
 | `0003-aic8800-cfg80211.patch` | 原始 `aic8800-usb-5.0-kiln` 包根目录；适配 7.4 的密钥类型接口，保持旧版本兼容 |
 | `0004-aic8800-parallelism.patch` | AIC 包根目录，在 0003 之后；移除厂商 Makefile 强制覆盖并行度的设置 |
+| `0005-kiln-rknpu-clock-voltage.patch` | Kiln NPU 包根目录，在 `fetch-vendor-driver.sh` 与 mainline shims 之后；固定 NPU 频率与供电轨，默认 1188 MHz / 950 mV |
 
-新树 `.rock4d/drivers` 内的源码已经完成外置驱动适配，无需重复应用 0003、0004。Kiln NPU 的 mainline shims 也已包含在其中；DKMS 预构建步骤使用现有源码，不重新下载覆盖。本次通过 Codex 辅助整理和验证，没有添加人的 DCO 签署。
+`0005` 起因于本移植不编译 `rknpu_devfreq.o`：`rknpu_power_on()` 每次上电都硬写 594 MHz，且驱动按 `rknpu-supply` 查找电源，而板级设备树使用的是 `npu-supply`，供电轨因此从未被绑定。补丁新增 `npu_freq_mhz`、`npu_volt_mv` 两个模块参数，补上 `npu-supply` 回退，并保证先升压再升频。
+
+默认值 1188 MHz / 950 mV 超出设备树 OPP 表（300–800 MHz）且取到 `vdd_npu_s0` 的电压上限，属于超频：实测 NPU 推理 34.8 → 22.2 ms、投递 10 → 29 fps、端到端 73.8 → 63 ms、NPU 温度 55 → 65 °C，但**尚未对比超频前后的检测精度**。回到已记录的运行点可用 `npu_freq_mhz=800 npu_volt_mv=0`。
+
+新树 `.rock4d/drivers` 内的源码已经完成外置驱动适配，无需重复应用 0003、0004。Kiln NPU 的 mainline shims 也已包含在其中；DKMS 预构建步骤使用现有源码，不重新下载覆盖。`0005` 作用于 DKMS 源包 `/usr/src/kiln-rknpu-0.9.8`，重编 NPU 模块前应用。本次通过 Codex 辅助整理和验证，没有添加人的 DCO 签署。
 
 Wi-Fi、蓝牙和 vendor NPU 驱动保留为外置模块，源码随新树放在 `.rock4d/drivers` 中：
 
