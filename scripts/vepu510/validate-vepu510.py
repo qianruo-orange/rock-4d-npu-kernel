@@ -3,6 +3,7 @@
 """Run bounded encoder checks on the installed candidate; leave the app alone."""
 from collections import Counter
 from datetime import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -64,9 +65,13 @@ if __name__ == '__main__':
     assert Path('/dev/mpp_service').exists()
     OUT.mkdir(exist_ok=True)
     plan = json.loads((BASE / 'mpp-userspace-validation-plan.json').read_text())
+    source = plan['input_nv12']
+    assert hashlib.sha256(Path(source['path']).read_bytes()).hexdigest() == source['sha256']
     start = float(Path('/proc/uptime').read_text().split()[0])
     report = {'started_at': datetime.now().astimezone().isoformat(),
               'kernel': platform.release(), 'tests': {}, 'passed': False,
+              'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+              'input_sha256': source['sha256'],
               'application_encoder_changed': False,
               'timing_note': 'Process wall/CPU time is standalone throughput, not application end-to-end latency.'}
     code = 1
@@ -88,7 +93,7 @@ if __name__ == '__main__':
         errors = [line for line in recent if (
             re.search(r'iommu|vepu|rkvenc|mpp_service|rockchip-pm-domain', line, re.I)
             and re.search(r'fault|timed out|timeout|failed|resetting|error', line, re.I))
-            or re.search(r'BUG:|Oops:|Call trace:', line)]
+            or re.search(r'BUG:|Oops:|WARNING:|Call trace:|hung task', line)]
         report['kernel_errors'] = errors
         report['passed'] = code == 0 and not errors
         report['finished_at'] = datetime.now().astimezone().isoformat()
