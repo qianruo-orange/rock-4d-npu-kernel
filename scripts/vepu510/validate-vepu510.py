@@ -16,6 +16,35 @@ import time
 
 BASE = Path(os.environ.get('ROCK4D_VEPU_WORKDIR', '/home/qianruo/kbuild/media/vepu510-mpp-linux74')).resolve()
 OUT = BASE / 'validation'
+MPP_COMMIT = '7916c3cc000fefc0bdf96636b7d54fe174724f44'
+TESTS = [('captured_8_frame_smoke', 8), ('synthetic_180_frame_gop60', 180)]
+
+
+def mpp_artifacts(plan):
+    """Identify the files selected by the actual encoder test commands."""
+    library = (BASE / 'mpp-userspace-build/mpp/librockchip_mpp.so.0').resolve(strict=True)
+    encoder = (BASE / 'mpp-userspace-build/test/mpi_enc_test').resolve(strict=True)
+    source_tree = (BASE / 'mpp-userspace').resolve(strict=True)
+    if (library.parent / 'librockchip_mpp.so.1').resolve(strict=True) != library:
+        raise RuntimeError('The test library SONAME link must select the recorded library')
+    for name, _ in TESTS:
+        command = plan['commands'][name]
+        # These plans deliberately run one pinned CLI through timeout and env.
+        if (len(command) < 8 or command[:5] != ['timeout', '-k', '5s', '60s', 'env'] or
+                not command[5].startswith('LD_LIBRARY_PATH=') or
+                Path(command[5].split('=', 1)[1]).resolve() != library.parent or
+                command[6] != 'mpp_dmabuf_has_partial_ops=0' or
+                Path(command[7]).resolve() != encoder):
+            raise RuntimeError('Encoder command does not select the recorded MPP artifacts')
+    git = ['git', '-c', f'safe.directory={source_tree}', '-C', str(source_tree)]
+    commit = subprocess.check_output(git + ['rev-parse', 'HEAD'], text=True).strip()
+    if commit != MPP_COMMIT:
+        raise RuntimeError('Unexpected MPP source commit')
+    subprocess.run(git + ['diff', '--exit-code', '--quiet'], check=True)
+    subprocess.run(git + ['diff', '--cached', '--exit-code', '--quiet'], check=True)
+    return {'source': {'path': str(source_tree), 'commit': commit},
+            'library': {'path': str(library), 'sha256': hashlib.sha256(library.read_bytes()).hexdigest()},
+            'encoder': {'path': str(encoder), 'sha256': hashlib.sha256(encoder.read_bytes()).hexdigest()}}
 
 
 def check_stream(path, expected):
@@ -67,22 +96,32 @@ if __name__ == '__main__':
     plan = json.loads((BASE / 'mpp-userspace-validation-plan.json').read_text())
     source = plan['input_nv12']
     assert hashlib.sha256(Path(source['path']).read_bytes()).hexdigest() == source['sha256']
+    artifacts = mpp_artifacts(plan)
     start = float(Path('/proc/uptime').read_text().split()[0])
     report = {'started_at': datetime.now().astimezone().isoformat(),
               'kernel': platform.release(), 'tests': {}, 'passed': False,
               'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
               'input_sha256': source['sha256'],
+              'mpp_artifacts': artifacts,
+              'mpp_artifacts_unchanged': False,
               'application_encoder_changed': False,
               'timing_note': 'Process wall/CPU time is standalone throughput, not application end-to-end latency.'}
     code = 1
     try:
-        for name, expected in [('captured_8_frame_smoke', 8),
-                               ('synthetic_180_frame_gop60', 180)]:
+        for name, expected in TESTS:
             report['tests'][name] = run_test(name, plan['commands'][name], expected)
         code = 0
     except Exception as error:
         report['error'] = str(error) or type(error).__name__
     finally:
+        try:
+            report['mpp_artifacts_unchanged'] = mpp_artifacts(plan) == artifacts
+            if not report['mpp_artifacts_unchanged']:
+                raise RuntimeError('MPP artifacts changed during hardware validation')
+        except Exception as error:
+            report['mpp_artifacts_unchanged'] = False
+            report['artifact_error'] = str(error) or type(error).__name__
+            code = 1
         log = subprocess.check_output(['dmesg', '--raw'], text=True)
         recent = []
         for line in log.splitlines():

@@ -73,6 +73,7 @@ def main():
               'input_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(),
               'input_description': 'Eight captured frames repeated to 180; identical input for both encoders.',
               'frames': FRAMES, 'fps_metadata': 30, 'gop': 60, 'target_bitrate': 2500000,
+              'color_range': 'full (both PSNR inputs explicitly preserve full range)',
               'cpu_affinity': sorted(os.sched_getaffinity(0)),
               'application_service_state': subprocess.run(['systemctl', 'is-active',
                   'autonomous-driving-car'], capture_output=True, text=True).stdout.strip(),
@@ -94,18 +95,18 @@ def main():
                         cmd[cmd.index(flag) + 1] = str(value)
                 else:
                     cmd = ['ffmpeg', '-nostdin', '-v', 'warning', '-y', '-f', 'rawvideo',
-                           '-pixel_format', 'nv12', '-video_size', '1280x720', '-framerate', '30',
+                           '-pixel_format', 'nv12', '-color_range', 'pc', '-video_size', '1280x720', '-framerate', '30',
                            '-i', str(reference), '-frames:v', str(FRAMES), '-an', '-c:v', 'libx264',
                            '-preset', 'veryfast', '-tune', 'zerolatency', '-threads',
                            str(report['software_threads']), '-b:v', '2500000', '-maxrate', '2500000',
                            '-bufsize', '5000000', '-g', '60', '-keyint_min', '60', '-sc_threshold', '0',
-                           '-bf', '0', '-x264-params', 'nal-hrd=cbr:force-cfr=1', '-f', 'h264', str(output)]
+                           '-bf', '0', '-color_range', 'pc', '-x264-params', 'nal-hrd=cbr:force-cfr=1', '-f', 'h264', str(output)]
                 row = command(cmd, out / (name + '.log'))
                 row.update(backend=backend, pair=pair, **checks.check_stream(output, FRAMES))
                 row['measured_bitrate'] = output.stat().st_size * 8 * 30 / FRAMES
                 psnr = out / (name + '.psnr')
-                filters = ('[0:v]format=yuv420p,setpts=PTS-STARTPTS[ref];'
-                           '[1:v]format=yuv420p,setpts=PTS-STARTPTS[dec];'
+                filters = ('[0:v]scale=in_range=full:out_range=full,format=yuv420p,setpts=PTS-STARTPTS[ref];'
+                           '[1:v]scale=in_range=full:out_range=full,format=yuv420p,setpts=PTS-STARTPTS[dec];'
                            f'[dec][ref]psnr=stats_file={psnr}:shortest=1')
                 command(['ffmpeg', '-nostdin', '-v', 'warning', '-f', 'rawvideo',
                          '-pixel_format', 'nv12', '-video_size', '1280x720', '-framerate', '30',

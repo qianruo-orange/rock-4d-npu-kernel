@@ -49,8 +49,11 @@ depmod -a "$release"
 mkdir -p /etc/modprobe.d
 # Keep decoder registration from taking a USB camera's low video node number.
 printf 'options rockchip_jpegd video_nr=32\n' > /etc/modprobe.d/autonomous-driving-car-jpeg.conf
-# The VEPU510 RFC remains available for explicit tests, but fails normal GOPs.
-printf 'blacklist rockchip_vepu510\n' > /etc/modprobe.d/autonomous-driving-car-experimental-encoder.conf
+# The older V4L2 RFC fails normal GOPs. Do not blacklist the separately
+# validated MPP implementation, which uses the same module name.
+if [[ $(modinfo -F description rockchip_vepu510 2>/dev/null || true) != 'Rockchip mpp service driver' ]]; then
+    printf 'blacklist rockchip_vepu510\n' > /etc/modprobe.d/autonomous-driving-car-experimental-encoder.conf
+fi
 modprobe v4l2-jpeg
 modprobe v4l2-mem2mem
 modprobe videobuf2-dma-contig
