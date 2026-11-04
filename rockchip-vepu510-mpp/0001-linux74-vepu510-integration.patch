@@ -1,9 +1,8 @@
-media: rockchip: prepare single-core VEPU510 MPP for Linux 7.4
+media: rockchip: support single-core VEPU510 MPP on Linux 7.4
 
-Add real powered-domain idle and IOMMU recovery APIs, then connect the
-ROCK 4D encoder and MMU using fixed bring-up clocks. Preserve existing
-Kiln NPU and JPEG support. Prepared with AI assistance; hardware encoding
-validation is still pending. No DCO certification is supplied by the tool.
+Add powered-domain idle, checked IOMMU recovery and a master fault
+notification that preserves DMA domain cookies. Connect the ROCK 4D
+encoder and MMU with fixed bring-up clocks. AI-assisted port.
 
 ---
 diff --git a/drivers/pmdomain/rockchip/pm-domains.c b/drivers/pmdomain/rockchip/pm-domains.c
@@ -125,10 +124,98 @@ diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
  
  #include "iommu-pages.h"
  
-@@ -1107,6 +1108,101 @@
- 	return ret;
+@@ -116,6 +117,11 @@
+ 	struct list_head node; /* entry in rk_iommu_domain.iommus */
+ 	struct iommu_domain *domain; /* domain to which iommu is attached */
+ 	const struct rk_iommu_ops *rk_ops;
++	/* Serialize a master's fault notification with registration/removal. */
++	spinlock_t fault_lock;
++	struct device *fault_master;
++	rockchip_iommu_fault_handler_t fault_handler;
++	void *fault_data;
+ };
+ 
+ struct rk_iommudata {
+@@ -644,6 +650,7 @@
+ 
+ 		if (int_status & RK_MMU_IRQ_PAGE_FAULT) {
+ 			int flags;
++			unsigned long irqflags;
+ 
+ 			status = rk_iommu_read(iommu->bases[i], RK_MMU_STATUS);
+ 			flags = (status & RK_MMU_STATUS_PAGE_FAULT_IS_WRITE) ?
+@@ -660,11 +667,16 @@
+ 			 * Ignore the return code, though, since we always zap cache
+ 			 * and clear the page fault anyway.
+ 			 */
+-			if (iommu->domain != &rk_identity_domain)
++			spin_lock_irqsave(&iommu->fault_lock, irqflags);
++			if (iommu->fault_handler)
++				iommu->fault_handler(iommu->dev, iova, flags,
++						     iommu->fault_data);
++			else if (iommu->domain != &rk_identity_domain)
+ 				report_iommu_fault(iommu->domain, iommu->dev, iova,
+ 						   flags);
+ 			else
+ 				dev_err(iommu->dev, "Page fault while iommu not attached to domain?\n");
++			spin_unlock_irqrestore(&iommu->fault_lock, irqflags);
+ 
+ 			rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_ZAP_CACHE);
+ 			rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_PAGE_FAULT_DONE);
+@@ -946,6 +958,48 @@
+ 	return data ? data->iommu : NULL;
  }
  
++/**
++ * rockchip_iommu_set_fault_handler() - Set a master's MMU fault notification
++ * @master: master attached to the Rockchip IOMMU
++ * @handler: atomic callback, or NULL to remove the notification
++ * @data: caller-owned callback context
++ *
++ * DMA domains own their IOVA cookies, so they cannot use the legacy domain
++ * fault-handler cookie. Keep notification separate from DMA mapping state.
++ * One master may register per IOMMU; a competing master receives -EBUSY.
++ * The callback runs with MMU clocks held and must not sleep or call this API.
++ * The caller must keep its master/context alive until removal completes.
++ * Removal waits for an in-progress callback through fault_lock.
++ *
++ * Return: zero on success, -ENODEV for an unknown master, or -EBUSY.
++ */
++int rockchip_iommu_set_fault_handler(struct device *master,
++				   rockchip_iommu_fault_handler_t handler, void *data)
++{
++	struct rk_iommu *iommu;
++	unsigned long flags;
++	int ret = 0;
++
++	if (!master)
++		return -ENODEV;
++	iommu = rk_iommu_from_dev(master);
++	if (!iommu)
++		return handler ? -ENODEV : 0;
++
++	spin_lock_irqsave(&iommu->fault_lock, flags);
++	if (iommu->fault_master && iommu->fault_master != master) {
++		ret = -EBUSY;
++	} else {
++		iommu->fault_master = handler ? master : NULL;
++		iommu->fault_handler = handler;
++		iommu->fault_data = handler ? data : NULL;
++	}
++	spin_unlock_irqrestore(&iommu->fault_lock, flags);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_set_fault_handler);
++
+ /* Must be called with iommu powered on and attached */
+ static void rk_iommu_disable(struct rk_iommu *iommu)
+ {
+@@ -1106,6 +1160,101 @@
+ 
+ 	return ret;
+ }
++
 +/**
 + * rockchip_iommu_reset() - Restore paging for a quiesced Rockchip master
 + * @dev: master attached to a Rockchip paging domain
@@ -223,20 +310,33 @@ diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
 +		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, 0);
 +}
 +EXPORT_SYMBOL_GPL(rockchip_iommu_mask_irq);
-+
+ 
  static struct iommu_domain *rk_iommu_domain_alloc_paging(struct device *dev)
  {
- 	struct rk_iommu_domain *rk_domain;
+@@ -1255,6 +1404,7 @@
+ 		return -ENOMEM;
+ 
+ 	iommu->domain = &rk_identity_domain;
++	spin_lock_init(&iommu->fault_lock);
+ 
+ 	platform_set_drvdata(pdev, iommu);
+ 	iommu->dev = dev;
 diff --git a/include/soc/rockchip/rockchip_iommu.h b/include/soc/rockchip/rockchip_iommu.h
 new file mode 100644
 --- /dev/null
 +++ b/include/soc/rockchip/rockchip_iommu.h
-@@ -0,0 +1,13 @@
+@@ -0,0 +1,19 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +#ifndef ROCKCHIP_IOMMU_RECOVERY_H
 +#define ROCKCHIP_IOMMU_RECOVERY_H
 +
 +struct device;
++
++typedef int (*rockchip_iommu_fault_handler_t)(struct device *iommu_dev,
++					    unsigned long iova, int flags, void *data);
++
++int rockchip_iommu_set_fault_handler(struct device *master,
++				   rockchip_iommu_fault_handler_t handler, void *data);
 +
 +/* The caller must quiesce its engine and disable the IOMMU IRQ first. */
 +int rockchip_iommu_reset(struct device *dev);

@@ -12,16 +12,16 @@
 
 ## 适配内容
 
-内核树已应用 Kiln NPU 所需的电源域、IOMMU、设备树适配，以及 RK3576 JPEG 解码驱动和设备树节点。配置继承当前实时内核的功能，启用 PREEMPT_RT；JPEG 驱动作为模块构建。已部署版本未启用实验性 VEPU510 编码驱动；与现有 RKNN 用户库不兼容的 Rocket 路径也未启用。
+内核树已应用 Kiln NPU 所需的电源域、IOMMU、设备树适配，以及 RK3576 JPEG 解码驱动和设备树节点。配置继承当前实时内核的功能，启用 PREEMPT_RT；JPEG 驱动作为模块构建。应用编码仍使用 libx264；与现有 RKNN 用户库不兼容的 Rocket 路径也未启用。
 
-后续的 [VEPU510 MPP 移植](../rockchip-vepu510-mpp/README.md) 已通过完整编译，正在准备独立后缀 `-vepu510` 的安装候选。该候选使用用户修改后的 1000 Hz 配置，并重编匹配的外置驱动；本目录的运行版配置仍为 250 Hz。候选尚待安装和硬件编码验证。
+2026-11-04 已安装并启动第一版 [VEPU510 MPP 移植](../rockchip-vepu510-mpp/README.md)，运行版本为 `7.4.0-rc1-npu-rt-vepu510`、1000 Hz。编码测试生成了可独立解码的 I/P 帧，但触发 IOMMU 回调注册告警，因此尚未验收或接入应用。修正后的独立版本 `-vepu510-r2` 正在构建。本目录 `config` 保留原 250 Hz 配置，`config-vepu510-r2` 保存 1000 Hz 候选配置。
 
 本目录保存完整构建配置 `config` 和可重放补丁：
 
 | 补丁 | 应用位置与用途 |
 | --- | --- |
 | `0001-kiln-npu.patch` | 内核根目录；保留 NPU 电源域、复位、时钟、IOMMU 和板级供电适配 |
-| `0002-jpeg-dt.patch` | 内核根目录，在 0001 之后；连接 JPEG Kbuild 与设备树，驱动文件取自工程的 `kernel/rockchip-jpegd` |
+| `0002-jpeg-dt.patch` | 内核根目录，在 0001 之后；连接 JPEG Kbuild 与设备树，驱动文件取自本仓库的 `rockchip-jpegd` |
 | `0003-aic8800-cfg80211.patch` | 原始 `aic8800-usb-5.0-kiln` 包根目录；适配 7.4 的密钥类型接口，保持旧版本兼容 |
 | `0004-aic8800-parallelism.patch` | AIC 包根目录，在 0003 之后；移除厂商 Makefile 强制覆盖并行度的设置 |
 
@@ -39,18 +39,20 @@ Wi-Fi、蓝牙和 vendor NPU 驱动保留为外置模块，源码随新树放在
 
 Wi-Fi 与蓝牙的二进制固件沿用本机 `/lib/firmware/aic8800*`，不作为源码参与编译。NPU 沿用现有 RKNN 用户库与模型。安装新内核时必须保留这些文件；本次源码适配不代表固件和用户库已获得主线支持。
 
-## 构建
+## 基础版构建
+
+下列两个 Bash 脚本保留基础版构建与安装流程，不用于覆盖当前独立后缀候选。VEPU510 构建入口和状态见 [移植说明](../rockchip-vepu510-mpp/README.md)。
 
 构建脚本仅处理已经适配并准备好配置的源树，不下载、打补丁、安装软件包或重启。默认使用 `-j24`，包版本为 `7.4~rc1-npu-rt-2`：
 
 ```bash
-nice -n 10 bash /home/qianruo/autonomous-driving-car/scripts/build_kernel74.sh
+nice -n 10 bash /home/qianruo/kbuild/kernels/rock4d-kernel/scripts/build_kernel74.sh
 ```
 
 也可以指定源码和日志目录：
 
 ```bash
-nice -n 10 bash /home/qianruo/autonomous-driving-car/scripts/build_kernel74.sh \
+nice -n 10 bash /home/qianruo/kbuild/kernels/rock4d-kernel/scripts/build_kernel74.sh \
   /home/qianruo/kbuild/kernels/7.4-rc1/source \
   /home/qianruo/kbuild/kernels/7.4-rc1/records
 ```
@@ -63,14 +65,14 @@ nice -n 10 bash /home/qianruo/autonomous-driving-car/scripts/build_kernel74.sh \
 
 ## 验证边界
 
-本机已完成严格构建、安装与重启，实际运行 `7.4.0-rc1-npu-rt`、`SMP PREEMPT_RT`。开机检查确认四个外置驱动已加载、Wi-Fi 已联网，NPU 推理后的显示及编码计数持续增长，JPEG 使用硬解，26 个应用线程均为 FIFO。车辆跟随保持关闭。蓝牙仅验证模块加载，未进行配对测试。
+本机已完成严格构建、安装与重启，基础版运行 `7.4.0-rc1-npu-rt`、`SMP PREEMPT_RT`。开机检查确认四个外置驱动已加载、Wi-Fi 已联网，NPU 推理后的显示及编码计数持续增长，JPEG 使用硬解，26 个应用线程均为 FIFO。车辆跟随保持关闭。蓝牙仅验证模块加载，未进行配对测试。
 
 ## 本机安装
 
 本轮完整构建于 2026 年 11 月 3 日 07:01:18 成功结束：3475 个内核树模块与四个外置模块均通过严格构建，image/headers 包通过 36 项独立检查。
 
 ```bash
-sudo bash /home/qianruo/autonomous-driving-car/scripts/install_kernel74.sh
+sudo bash /home/qianruo/kbuild/kernels/rock4d-kernel/scripts/install_kernel74.sh
 ```
 
 安装脚本先备份现有启动配置，临时保护 Armbian 自动改写 uInitrd 的钩子，安装匹配的 headers、image 和 DKMS 驱动，校验版本化 Image、设备树及 uInitrd，最后统一设置下次启动。Wi-Fi/蓝牙登记为 `aic8800-usb/5.0-kiln-linux74`，仅自动构建 7.4 内核。安装阶段保留原有源码、模块和固件，脚本本身不重启；本机之后执行的清理见下文。
@@ -81,6 +83,7 @@ sudo bash /home/qianruo/autonomous-driving-car/scripts/install_kernel74.sh
 
 ```text
 kbuild/
+  kernels/rock4d-kernel/  独立内核适配 Git 仓库
   kernels/7.4-rc1/
     source/        当前内核源码及构建产物
     packages/      当前 image、headers、dbg、libc-dev 与打包元数据

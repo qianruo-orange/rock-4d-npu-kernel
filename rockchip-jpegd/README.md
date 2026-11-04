@@ -10,9 +10,9 @@
 
 ```bash
 sudo bash scripts/install_jpeg_decoder.sh
-bash scripts/build.sh -R
-sudo bash scripts/deploy.sh -i
 ```
+
+以上命令在本内核仓库根目录运行。应用的 `scripts/build.sh` 和 `scripts/deploy.sh` 位于独立的 [autonomous-driving-car](https://github.com/qianruo-orange/autonomous-driving-car) 仓库。
 
 需要当前内核匹配的 headers、构建工具、device-tree-compiler 和 kmod。脚本仅面向已验证的 Radxa ROCK 4D；先构建并生成候选设备树，再备份、安装模块与验证绑定。启动设备树在成功后原子替换。当前启动缺少 JPEG 节点时，通过临时 OF overlay 模块激活；下次启动直接使用已补齐节点的设备树。
 

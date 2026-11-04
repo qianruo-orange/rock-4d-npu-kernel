@@ -1,0 +1,20 @@
+# Generated kernel/module/package artifacts; source Makefiles and patches are tracked.
+*.o
+*.ko
+*.ko.*
+*.a
+*.so
+*.cmd
+*.mod
+*.mod.c
+*.deb
+*.buildinfo
+*.changes
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+__pycache__/
+.cache/
+build/

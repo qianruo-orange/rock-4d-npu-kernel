@@ -52,7 +52,7 @@
     },
     {
       "path": "module/mpp_iommu.c",
-      "sha256": "15ddeaf481a932ae08f329bf7f870167dfaca7648ff0a26d3457f6db4c237dec",
+      "sha256": "2ade0528a1016e98fae9c354bec87cdaeb956beb71f7a617e884f020bd36402a",
       "origin": {
         "kind": "rockchip-linux/kernel",
         "path": "drivers/video/rockchip/mpp/mpp_iommu.c",
@@ -110,7 +110,7 @@
     },
     {
       "path": "module/include/soc/rockchip/rockchip_iommu.h",
-      "sha256": "9594afc6450dccf35af84c57697b1bb54ca3b6e57ec1fbe68eb09784bd35d64d",
+      "sha256": "4458a1d4a55dd4224061468f0badced7b52d556074e3e50a1f5fb0433f067cb4",
       "origin": {
         "kind": "project-linux74-port",
         "description": "Declarations of the real kernel IOMMU recovery helpers"
@@ -120,7 +120,7 @@
   "integration_files": [
     {
       "path": "0001-linux74-vepu510-integration.patch",
-      "sha256": "13c466163fbea75f3eeb68e5d95f857f44e146a112e8422ca84cfda4b6391819",
+      "sha256": "a4d4007165b797015a48f47738c096bafc8f1ba2c566c658b58d00e5d6f2b3ca",
       "origin": "Project Linux 7.4 PM-domain/IOMMU helper and ROCK 4D device-tree integration"
     },
     {
@@ -141,5 +141,16 @@
       "sha256": "323c587d0ccf10e376f8bf9a7f31fb4ca6078105194b42e0b1e0ee2bc9bde71f",
       "origin": "Linux LICENSES/preferred/MIT"
     }
-  ]
+  ],
+  "kiln_compatibility_patch": {
+    "path": "0002-kiln-iommu-header-scope.patch",
+    "sha256": "a9b0d69a8306ee6638e581df9fc310a0565860a0777af33c2a3b079c1a6e7a8b",
+    "applies_to": "kiln-rknpu-0.9.8 package root",
+    "behavior": "Explicitly select the existing private NPU IOMMU compatibility header."
+  },
+  "fault_notification_revision": {
+    "reason": "Legacy domain fault registration rejects DMA cookies on Linux 7.4",
+    "kernel_export": "rockchip_iommu_set_fault_handler",
+    "hardware_retest_pending": true
+  }
 }

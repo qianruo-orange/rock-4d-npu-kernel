@@ -1,0 +1,49 @@
+accel: rknpu: scope the private mainline IOMMU compatibility header
+
+An added kernel IOMMU recovery header takes precedence over the Kiln
+compatibility include directory. Keep the NPU-only suspend compatibility
+API explicit, preserving its existing behavior and the real MPP helpers.
+Update fresh-source and already-patched shim paths. AI-assisted change.
+
+---
+diff --git a/driver/rknpu/rknpu_drv.c b/driver/rknpu/rknpu_drv.c
+--- a/driver/rknpu/rknpu_drv.c
++++ b/driver/rknpu/rknpu_drv.c
+@@ -34,7 +34,7 @@
+ #include <linux/of_address.h>
+ 
+ #ifndef FPGA_PLATFORM
+-#include <soc/rockchip/rockchip_iommu.h>
++#include "../compat/soc/rockchip/rockchip_iommu.h"
+ #endif
+ 
+ #include "rknpu_ioctl.h"
+diff --git a/driver/apply-mainline-shims.sh b/driver/apply-mainline-shims.sh
+--- a/driver/apply-mainline-shims.sh
++++ b/driver/apply-mainline-shims.sh
+@@ -34,8 +34,17 @@
+ [ -d "$RKNPU" ] || { echo "[kiln] ERROR: $RKNPU not found. Run fetch-vendor-driver.sh first." >&2; exit 1; }
+ [ -f "$PATCH" ] || { echo "[kiln] ERROR: $PATCH missing." >&2; exit 1; }
+ 
++# The NPU compatibility API is private; kernel MPP recovery headers must not
++# override it through the global include search order.
++scope_iommu_header() {
++	local npu_iommu_from='<soc/rockchip/rockchip_iommu\.h>'
++	local npu_iommu_to='"../compat/soc/rockchip/rockchip_iommu.h"'
++	sed -i "s|$npu_iommu_from|$npu_iommu_to|" "$RKNPU/rknpu_drv.c"
++}
++
+ # Idempotent: a marker unique to the patch means it is already applied.
+ if grep -q "rknpu_mmu_enable_all" "$RKNPU/rknpu_drv.c" 2>/dev/null; then
++	scope_iommu_header
+ 	echo "[kiln] shims already applied (rknpu_mmu_enable_all present); nothing to do."
+ 	exit 0
+ fi
+@@ -82,5 +91,7 @@
+ # real fix is the kernel patch kernel-patches/0010 (regulator-always-on on
+ # vdd_npu_s0): the NPU rail stays up, so every power-on lands on a live core.
+ 
++scope_iommu_header
++
+ echo "[kiln] driver/rknpu is patched for mainline + RK3576 NPU execution."
+ echo "[kiln] build with: make KDIR=<your-kernel-build>"

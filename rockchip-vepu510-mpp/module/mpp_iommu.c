@@ -530,6 +530,27 @@ static int mpp_iommu_handle(struct iommu_domain *iommu,
 	return 0;
 }
 
+static int mpp_iommu_dispatch_fault(struct device *iommu_dev, unsigned long iova,
+				  int status, void *data)
+{
+	struct mpp_iommu_info *info = data;
+	iommu_fault_handler_t handler;
+	struct mpp_dev *mpp;
+	unsigned long flags;
+	int ret = -ENODEV;
+
+	/* Deactivation must wait until the handler has finished using cur_task. */
+	spin_lock_irqsave(&info->dev_lock, flags);
+	mpp = info->dev_active;
+	if (mpp) {
+		handler = mpp->fault_handler ?: mpp_iommu_handle;
+		ret = handler(info->domain, iommu_dev, iova, status, mpp);
+	}
+	spin_unlock_irqrestore(&info->dev_lock, flags);
+
+	return ret;
+}
+
 struct mpp_iommu_info *
 mpp_iommu_probe(struct device *dev)
 {
@@ -606,6 +627,9 @@ mpp_iommu_probe(struct device *dev)
 		if (info->shared)
 			iommu_detach_group(info->domain, info->group);
 	}
+	ret = rockchip_iommu_set_fault_handler(dev, mpp_iommu_dispatch_fault, info);
+	if (ret)
+		goto err_put_group;
 
 	return info;
 
@@ -623,6 +647,7 @@ int mpp_iommu_remove(struct mpp_iommu_info *info)
 {
 	if (!info)
 		return 0;
+	rockchip_iommu_set_fault_handler(info->dev, NULL, NULL);
 
 	/* if iommu shared, ensure current device's domain, then remove correctly */
 	if (info->shared)
@@ -670,9 +695,6 @@ int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev)
 		ret = -EINVAL;
 	} else {
 		info->dev_active = dev;
-		/* switch domain pagefault handler and arg depending on device */
-		iommu_set_fault_handler(info->domain, dev->fault_handler ?
-					dev->fault_handler : mpp_iommu_handle, dev);
 
 		dev_dbg(info->dev, "activate -> %p %s\n", dev, dev_name(dev->dev));
 	}

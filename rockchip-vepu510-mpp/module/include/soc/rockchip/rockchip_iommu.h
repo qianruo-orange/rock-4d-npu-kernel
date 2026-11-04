@@ -4,6 +4,12 @@
 
 struct device;
 
+typedef int (*rockchip_iommu_fault_handler_t)(struct device *iommu_dev,
+					    unsigned long iova, int flags, void *data);
+
+int rockchip_iommu_set_fault_handler(struct device *master,
+				   rockchip_iommu_fault_handler_t handler, void *data);
+
 /* The caller must quiesce its engine and disable the IOMMU IRQ first. */
 int rockchip_iommu_reset(struct device *dev);
 
