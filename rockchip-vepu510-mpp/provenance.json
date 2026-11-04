@@ -72,7 +72,7 @@
     },
     {
       "path": "module/mpp_rkvenc2.c",
-      "sha256": "49188ee37d6a9eea71a078fe2962d37f05d4b8de400f1727f54c12841035d4f8",
+      "sha256": "3948d95dcf3ddd06cc65d419c8f7584d0d873a29b3ca4d80131982954cf6feac",
       "origin": {
         "kind": "rockchip-linux/kernel",
         "path": "drivers/video/rockchip/mpp/mpp_rkvenc2.c",
@@ -106,14 +106,6 @@
         "path": "include/uapi/linux/rk-mpp.h",
         "upstream_sha256": "8d01bbf754c60d15660009a35bb55b191b36dd49d438431dc0f56570ccce5860",
         "modified_for_linux74": false
-      }
-    },
-    {
-      "path": "module/include/soc/rockchip/rockchip_iommu.h",
-      "sha256": "4458a1d4a55dd4224061468f0badced7b52d556074e3e50a1f5fb0433f067cb4",
-      "origin": {
-        "kind": "project-linux74-port",
-        "description": "Declarations of the real kernel IOMMU recovery helpers"
       }
     }
   ],
@@ -151,6 +143,61 @@
   "fault_notification_revision": {
     "reason": "Legacy domain fault registration rejects DMA cookies on Linux 7.4",
     "kernel_export": "rockchip_iommu_set_fault_handler",
-    "hardware_retest_pending": true
+    "hardware_retest_pending": false,
+    "validation": {
+      "date": "2026-11-04",
+      "kernel": "7.4.0-rc1-npu-rt-vepu510-r2",
+      "boot_id": "46e2b942-90f8-468b-9a20-4001de22f2b1",
+      "hardware_acceptance_passed": true,
+      "captured_input_frames": 8,
+      "continuous_gop60_frames": 180,
+      "continuous_frame_types": {
+        "I": 3,
+        "P": 177
+      },
+      "successful_module_reload_tests": 3,
+      "application_interface": {
+        "encoder": "rkmpp",
+        "frames": 180,
+        "keyframes": 3,
+        "mean_encode_ms": 12.790837133333333
+      },
+      "kernel_errors": [],
+      "comparison": {
+        "hardware": {
+          "throughput_fps": 72.76496186111687,
+          "cpu_ms_per_frame": 2.4190944444444558,
+          "wall_ms_per_frame_from_throughput": 13.74287808888918,
+          "measured_bitrate": 2474482.6666666665,
+          "psnr_db_from_mean_mse": 48.3194157822725
+        },
+        "software": {
+          "throughput_fps": 45.15929698150116,
+          "cpu_ms_per_frame": 63.08282777777786,
+          "wall_ms_per_frame_from_throughput": 22.143834533332868,
+          "measured_bitrate": 2516628.0,
+          "psnr_db_from_mean_mse": 48.63446437068647
+        }
+      },
+      "evidence": [
+        {
+          "path": "/home/qianruo/kbuild/media/vepu510-mpp-linux74/validation/hardware-validation.json",
+          "sha256": "eb0c36529f3f428a87cd8946b59283e556e49b7b17b36cc007feac8df2a17cda"
+        },
+        {
+          "path": "/home/qianruo/kbuild/media/vepu510-mpp-linux74/validation/reload-validation.json",
+          "sha256": "192528b5fea06ac61c497ae5da730d0edae7481c60721c71a63ddcb576fe91db"
+        },
+        {
+          "path": "/home/qianruo/kbuild/media/vepu510-mpp-linux74/validation/app-hardware.json",
+          "sha256": "9eb32e728cf3348d04c3d31c83615da4400156584ecba27e885f972d41ebbe36"
+        },
+        {
+          "path": "/home/qianruo/kbuild/media/vepu510-mpp-linux74/benchmarks/20261104T132042+0800/comparison.json",
+          "sha256": "f4486b0eea6ae778356b468d3475ba4b122c16aad84bed3d15afc06c230ef898"
+        }
+      ],
+      "limits": "Short fixed-sample H.264 tests and standalone throughput/CPU comparison; no claim of long-term thermal stability, all resolution support, H.265 validation or camera-to-browser latency."
+    }
   }
 }

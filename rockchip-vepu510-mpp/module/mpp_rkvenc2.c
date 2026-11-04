@@ -1490,6 +1490,47 @@ static void rkvenc2_calc_timeout_thd(struct mpp_dev *mpp)
 	mpp_write(mpp, RKVENC_WDG, timeout_thd);
 }
 
+/*
+ * mpp->cur_task is dereferenced from the IOMMU fault callback, which runs with
+ * mpp_iommu_info::dev_lock held, while task start and completion update it from
+ * the task worker and the encoder interrupt. Every writer takes the same lock,
+ * so a fault racing completion cannot walk a task that was already finished.
+ */
+static void rkvenc_set_cur_task(struct mpp_dev *mpp, struct mpp_task *task)
+{
+	struct mpp_iommu_info *info = mpp->iommu_info;
+	unsigned long flags;
+
+	if (!info) {
+		mpp->cur_task = task;
+		return;
+	}
+
+	spin_lock_irqsave(&info->dev_lock, flags);
+	mpp->cur_task = task;
+	spin_unlock_irqrestore(&info->dev_lock, flags);
+}
+
+static struct mpp_task *rkvenc_take_cur_task(struct mpp_dev *mpp)
+{
+	struct mpp_iommu_info *info = mpp->iommu_info;
+	struct mpp_task *task;
+	unsigned long flags;
+
+	if (!info) {
+		task = mpp->cur_task;
+		mpp->cur_task = NULL;
+		return task;
+	}
+
+	spin_lock_irqsave(&info->dev_lock, flags);
+	task = mpp->cur_task;
+	mpp->cur_task = NULL;
+	spin_unlock_irqrestore(&info->dev_lock, flags);
+
+	return task;
+}
+
 static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 {
 	u32 i, j;
@@ -1547,7 +1588,7 @@ static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 	mpp_iommu_flush_tlb(mpp->iommu_info);
 
 	/* init current task */
-	mpp->cur_task = mpp_task;
+	rkvenc_set_cur_task(mpp, mpp_task);
 
 	rkvenc2_calc_timeout_thd(mpp);
 
@@ -1579,7 +1620,7 @@ static int rkvenc_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 			mpp_write(mpp, 0x300, enc_pic | BIT(30) | BIT(31));
 			ret = clk_enable(enc->core_clk_info.clk);
 			if (ret) {
-				mpp->cur_task = NULL;
+				rkvenc_set_cur_task(mpp, NULL);
 				mpp_task_run_end(mpp_task, timing_en);
 				cancel_delayed_work_sync(&mpp_task->timeout_work);
 				return ret;
@@ -1832,15 +1873,13 @@ static int rkvenc_isr(struct mpp_dev *mpp)
 
 	mpp_debug_enter();
 
-	/* FIXME use a spin lock here */
-	if (!mpp->cur_task) {
+	mpp_task = rkvenc_take_cur_task(mpp);
+	if (!mpp_task) {
 		dev_err(mpp->dev, "no current task\n");
 		return IRQ_HANDLED;
 	}
 
-	mpp_task = mpp->cur_task;
 	mpp_time_diff(mpp_task);
-	mpp->cur_task = NULL;
 
 	if (mpp_task->mpp && mpp_task->mpp != mpp)
 		dev_err(mpp->dev, "mismatch core dev %p:%p\n", mpp_task->mpp, mpp);
