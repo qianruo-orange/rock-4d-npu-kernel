@@ -1428,13 +1428,23 @@ static irqreturn_t rkjpegd_vdpu720_irq(int irq, void *dev_id)
 		VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE;
 
 	/*
-	 * A block that did not park itself wedges on the next frame, and a
-	 * clean frame can leave it unparked too, as SOFT_RST_RDY shows.  The
-	 * reset sleeps, so leave it to rkjpegd_vdpu720_run().  The next job
-	 * is only started after job_spinlock has released this one, which
-	 * orders the store.
+	 * A block that ended a job in error may wedge on the next frame.  The
+	 * reset sleeps, so leave it to rkjpegd_vdpu720_run().  The next job is
+	 * only started after job_spinlock has released this one, which orders
+	 * the store.
+	 *
+	 * SOFT_RST_RDY is not usable as a "the block did not park itself"
+	 * indication here.  It only reads back as the handshake of an in-block
+	 * reset that was just requested and stays clear after a normal frame,
+	 * so testing it marks every completed frame as needing a reset.  That
+	 * puts a soft reset in front of every job, and the start write then
+	 * races the reset release: on RK3576 this was measured at 5848 resets
+	 * for 5849 jobs, with a frame dropping its start and running into the
+	 * 2 s watchdog roughly every minute.  The downstream driver restricts
+	 * the same check to hardware older than VPU720
+	 * (hw_id < JPGDEC_HWID_VPU720) for this reason.
 	 */
-	if (state == VB2_BUF_STATE_ERROR || !(status & VDPU720_SOFT_RST_RDY))
+	if (state == VB2_BUF_STATE_ERROR)
 		jpegd->needs_reset = true;
 
 	if (status & VDPU720_DEC_ERR) {
@@ -1477,8 +1487,33 @@ static void rkjpegd_watchdog(struct work_struct *work)
 						 watchdog_work);
 	/* Only armed while a job runs, so there is always a context. */
 	struct rkjpegd_ctx *ctx = v4l2_m2m_get_curr_priv(jpegd->m2m_dev);
+	u32 status, mcu_pos, err;
 
-	dev_err(jpegd->dev, "frame processing timed out\n");
+	if (!ctx) {
+		dev_err(jpegd->dev, "frame processing timed out with no job\n");
+		return;
+	}
+
+	/*
+	 * Read the block's own report before resetting it: without these the
+	 * log only says that time passed, and there is no way to tell a hung
+	 * decode from a start that never took effect.
+	 */
+	status  = rkjpegd_read(jpegd, VDPU720_REG_INT);
+	mcu_pos = rkjpegd_read(jpegd, VDPU720_REG_DBG_MCU_POS);
+	err     = rkjpegd_read(jpegd, VDPU720_REG_DBG_ERROR);
+
+	dev_err(jpegd->dev,
+		"frame processing timed out: int=0x%08x mcu=(%u,%u) err=0x%05x rd=%u wr=%u\n",
+		status,
+		(u32)FIELD_GET(VDPU720_DBG_MCU_POS_X, mcu_pos),
+		(u32)FIELD_GET(VDPU720_DBG_MCU_POS_Y, mcu_pos),
+		(u32)FIELD_GET(VDPU720_DERR_FLAGS, err),
+		rkjpegd_read(jpegd, VDPU720_REG_PERF_RD_BYTES),
+		rkjpegd_read(jpegd, VDPU720_REG_PERF_WR_BYTES));
+
+	if (err)
+		rkjpegd_write(jpegd, err, VDPU720_REG_DBG_ERROR);
 
 	rkjpegd_vdpu720_reset(ctx);
 	rkjpegd_job_finish(ctx, VB2_BUF_STATE_ERROR);
