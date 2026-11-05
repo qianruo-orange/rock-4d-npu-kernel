@@ -1271,36 +1271,20 @@ static void rkjpegd_vdpu720_exit(struct rkjpegd_ctx *ctx)
  * Trigger the in-block soft reset and wait up to 10 ms for it to report
  * ready.  Sleeps while polling, so it must not be called from atomic context.
  */
-static int vdpu720_soft_reset(struct rkjpegd_dev *jpegd)
+static void vdpu720_soft_reset(struct rkjpegd_dev *jpegd)
 {
 	u32 status;
-	int ret;
 
-	/*
-	 * A block that hung mid-decode does not necessarily honour a soft reset
-	 * requested on its own, so force it first instead of doing that only for
-	 * an idle block.  Clear the status register as well: writing the old
-	 * value back let a stale ready bit satisfy the poll below.
-	 */
-	rkjpegd_write(jpegd, 0, VDPU720_REG_INT);
-	rkjpegd_write(jpegd, VDPU720_FORCE_SOFTRST, VDPU720_REG_SYS);
-	rkjpegd_write(jpegd, VDPU720_SOFT_RST_EN, VDPU720_REG_INT);
+	/* Idle blocks want FORCE_SOFTRESET_VALID first, per downstream BSP. */
+	status = rkjpegd_read(jpegd, VDPU720_REG_INT);
+	if (!(status & VDPU720_DEC_E))
+		rkjpegd_write(jpegd, VDPU720_FORCE_SOFTRST, VDPU720_REG_SYS);
 
-	ret = readl_relaxed_poll_timeout(jpegd->regs + VDPU720_REG_INT, status,
-					 status & VDPU720_SOFT_RST_RDY, 5, 10000);
-	if (ret) {
-		/*
-		 * One retry: the first request is routinely lost while the block
-		 * is still draining a bus transaction.
-		 */
-		rkjpegd_write(jpegd, VDPU720_SOFT_RST_EN, VDPU720_REG_INT);
-		ret = readl_relaxed_poll_timeout(jpegd->regs + VDPU720_REG_INT,
-						 status, status & VDPU720_SOFT_RST_RDY,
-						 5, 10000);
-	}
-	if (ret)
-		dev_warn(jpegd->dev, "soft reset timed out (int=0x%08x)\n", status);
-	return ret;
+	rkjpegd_write(jpegd, status | VDPU720_SOFT_RST_EN, VDPU720_REG_INT);
+
+	if (readl_relaxed_poll_timeout(jpegd->regs + VDPU720_REG_INT, status,
+				       status & VDPU720_SOFT_RST_RDY, 5, 10000))
+		dev_warn(jpegd->dev, "soft reset timed out\n");
 }
 
 /**
@@ -1315,13 +1299,10 @@ static void rkjpegd_vdpu720_reset(struct rkjpegd_ctx *ctx)
 {
 	struct rkjpegd_dev *jpegd = ctx->dev;
 
-	/*
-	 * Keep needs_reset when the block refuses to reset: the next run has to
-	 * try again instead of programming registers on an unknown state.
-	 */
-	if (vdpu720_soft_reset(jpegd) == 0)
-		jpegd->needs_reset = false;
+	vdpu720_soft_reset(jpegd);
 	rkjpegd_write(jpegd, 0, VDPU720_REG_INT);
+
+	jpegd->needs_reset = false;
 }
 
 /**
@@ -1457,23 +1438,13 @@ static irqreturn_t rkjpegd_vdpu720_irq(int irq, void *dev_id)
 		VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE;
 
 	/*
-	 * A block that ended a job in error may wedge on the next frame.  The
-	 * reset sleeps, so leave it to rkjpegd_vdpu720_run().  The next job is
-	 * only started after job_spinlock has released this one, which orders
-	 * the store.
-	 *
-	 * SOFT_RST_RDY is not usable as a "the block did not park itself"
-	 * indication here.  It only reads back as the handshake of an in-block
-	 * reset that was just requested and stays clear after a normal frame,
-	 * so testing it marks every completed frame as needing a reset.  That
-	 * puts a soft reset in front of every job, and the start write then
-	 * races the reset release: on RK3576 this was measured at 5848 resets
-	 * for 5849 jobs, with a frame dropping its start and running into the
-	 * 2 s watchdog roughly every minute.  The downstream driver restricts
-	 * the same check to hardware older than VPU720
-	 * (hw_id < JPGDEC_HWID_VPU720) for this reason.
+	 * A block that did not park itself wedges on the next frame, and a
+	 * clean frame can leave it unparked too, as SOFT_RST_RDY shows.  The
+	 * reset sleeps, so leave it to rkjpegd_vdpu720_run().  The next job
+	 * is only started after job_spinlock has released this one, which
+	 * orders the store.
 	 */
-	if (state == VB2_BUF_STATE_ERROR)
+	if (state == VB2_BUF_STATE_ERROR || !(status & VDPU720_SOFT_RST_RDY))
 		jpegd->needs_reset = true;
 
 	if (status & VDPU720_DEC_ERR) {
@@ -1516,33 +1487,8 @@ static void rkjpegd_watchdog(struct work_struct *work)
 						 watchdog_work);
 	/* Only armed while a job runs, so there is always a context. */
 	struct rkjpegd_ctx *ctx = v4l2_m2m_get_curr_priv(jpegd->m2m_dev);
-	u32 status, mcu_pos, err;
 
-	if (!ctx) {
-		dev_err(jpegd->dev, "frame processing timed out with no job\n");
-		return;
-	}
-
-	/*
-	 * Read the block's own report before resetting it: without these the
-	 * log only says that time passed, and there is no way to tell a hung
-	 * decode from a start that never took effect.
-	 */
-	status  = rkjpegd_read(jpegd, VDPU720_REG_INT);
-	mcu_pos = rkjpegd_read(jpegd, VDPU720_REG_DBG_MCU_POS);
-	err     = rkjpegd_read(jpegd, VDPU720_REG_DBG_ERROR);
-
-	dev_err(jpegd->dev,
-		"frame processing timed out: int=0x%08x mcu=(%u,%u) err=0x%05x rd=%u wr=%u\n",
-		status,
-		(u32)FIELD_GET(VDPU720_DBG_MCU_POS_X, mcu_pos),
-		(u32)FIELD_GET(VDPU720_DBG_MCU_POS_Y, mcu_pos),
-		(u32)FIELD_GET(VDPU720_DERR_FLAGS, err),
-		rkjpegd_read(jpegd, VDPU720_REG_PERF_RD_BYTES),
-		rkjpegd_read(jpegd, VDPU720_REG_PERF_WR_BYTES));
-
-	if (err)
-		rkjpegd_write(jpegd, err, VDPU720_REG_DBG_ERROR);
+	dev_err(jpegd->dev, "frame processing timed out\n");
 
 	rkjpegd_vdpu720_reset(ctx);
 	rkjpegd_job_finish(ctx, VB2_BUF_STATE_ERROR);
