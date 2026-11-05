@@ -55,7 +55,7 @@ printf 'source=%s\nrelease=%s\npackage_version=%s\njobs=%s\n' \
 [[ $(make -s -C "$source_tree" kernelrelease) == "$release" ]] || {
     printf 'Prepared kernel release does not match %s.\n' "$release" >&2; exit 1;
 }
-for setting in CONFIG_ARM64=y CONFIG_PREEMPT_RT=y CONFIG_VIDEO_ROCKCHIP_JPEGD=m; do
+for setting in CONFIG_ARM64=y CONFIG_PREEMPT_RT=y CONFIG_VIDEO_ROCKCHIP_JPEGD=y; do
     grep -qx "$setting" "$source_tree/.config" || {
         printf 'Required configuration missing: %s\n' "$setting" >&2; exit 1;
     }

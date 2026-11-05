@@ -720,6 +720,16 @@ static void rkjpegd_job_finish_no_pm(struct rkjpegd_ctx *ctx,
 		ctx->fh.m2m_ctx->last_src_buf = NULL;
 	}
 
+	/*
+	 * The decoded frame is written by DMA into the capture buffer, which
+	 * userspace then reads through a CPU mapping. Without this the CPU sees
+	 * whatever cache lines it happened to have, so half the frame arrives
+	 * from the previous decode.
+	 */
+	dma_sync_single_for_cpu(jpegd->dev,
+				vb2_dma_contig_plane_dma_addr(&dst->vb2_buf, 0),
+				vb2_plane_size(&dst->vb2_buf, 0), DMA_FROM_DEVICE);
+
 	v4l2_m2m_buf_done_and_job_finish(jpegd->m2m_dev, ctx->fh.m2m_ctx,
 					 state);
 }
