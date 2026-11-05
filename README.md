@@ -43,6 +43,27 @@ make -C <tree> ARCH=arm64 LOCALVERSION=-full INSTALL_MOD_STRIP=1 modules_install
 
 部署结果：内核 `7.4.0-rc1-npu-rt-full`，NPU 1188 MHz，应用 active，端到端 47 ms，30 fps，64 °C。
 
+
+### 复现 `7.4.0-rc1-npu-rt-full`
+
+四个驱动全部内置，配置见 `rock4d-linux74/config-npu-rt-full`（与 `config-vepu510-r2` 相差 59 条，全部是四个驱动及其 `VIDEO_DEV`/媒体级联）：
+
+```sh
+# 1) 基础树：7.4-rc1 + rock4d-linux74 补丁
+# 2) 并入三个驱动包
+cp -a rockchip-rga3  <tree>/drivers/video/rockchip/rga3
+cp -a rockchip-rknpu <tree>/drivers/rknpu
+cp -a rockchip-mpp   <tree>/drivers/media/platform/rockchip/mpp
+# 接线（见各包 README）
+# 3) 配置与构建
+cp rock4d-linux74/config-npu-rt-full <tree>/.config
+make -C <tree> ARCH=arm64 oldconfig
+make -C <tree> ARCH=arm64 -j8 LOCALVERSION=-full Image dtbs modules
+make -C <tree> ARCH=arm64 LOCALVERSION=-full INSTALL_MOD_STRIP=1 modules_install
+```
+
+设备树：`rockchip-rga3/rk3576-rga2.dtsi` 提供 RGA 双核节点（默认 disabled，板级 DTS 需逐个 okay）；NPU 与 JPEG 节点来自 `rock4d-linux74/0001`、`0002` 补丁。
+
 ## 目录
 
 | 路径 | 内容 |

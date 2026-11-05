@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config ROCKCHIP_MPP
+	tristate "Rockchip MPP VEPU510 encoder (RK3576)"
+	depends on ARCH_ROCKCHIP
+	help
+	  Rockchip media process platform driver for the VEPU510 H.264/H.265
+	  encoder on RK3576. Ported from the vendor MPP tree for linux 7.4.
