@@ -12,6 +12,37 @@ R2 的 VEPU510 硬件验收通过：8 帧实际输入、180 帧 GOP 60 连续编
 
 同输入、同色彩范围的三组编码对照中，硬件吞吐中位数为 72.765 帧/秒，进程 CPU 时间为 2.419 ms/帧；历史软件对照为 45.159 帧/秒、63.083 ms/帧。这是短时固定样本的整进程测量，不能视为相机到浏览器的延迟。实际码率、PSNR 与限制见 [应用编解码报告](https://github.com/qianruo-orange/autonomous-driving-car/blob/main/docs/CODEC_PERFORMANCE.md)。应用使用 JPEG 硬件解码和 VEPU510 H.264 硬件编码，具体部署版本由独立应用仓库维护。
 
+## 当前发布：7.4.0-rc1-npu-rt-full
+
+2026-11-05 一次性重建并部署。相对 `-vepu510-r2` 的变化是把四个驱动从"外部模块/未启用"改为**内核内置**：
+
+| 驱动 | 之前 | 现在 | 验证 |
+|---|---|---|---|
+| RKNPU（含 0005 的 1188 MHz / 950 mV） | DKMS 模块 | 内置 | `rknpu_probe` 在 System.map；无 `rknpu.ko` |
+| JPEG 解码 `rkjpegd` | `rockchip_jpegd.ko` | 内置 | `/dev/video0`；`rockchip-jpegd` 平台驱动绑定 |
+| VEPU510 编码 `mpp` | `rockchip_vepu510.ko` | 内置 | `mpp_service`+`mpp_rkvenc2` 探测成功；`/dev/mpp_service` |
+| RGA3（`rockchip-rga3/`） | 无驱动 | 内置 | 双核 probe successfully；`/dev/rga` |
+
+仍为模块：`aic8800`（WiFi，换内核需按版本重编）、`uvcvideo`（相机）。
+
+构建命令：
+
+```sh
+make -C <tree> ARCH=arm64 -j8 LOCALVERSION=-full Image dtbs modules
+make -C <tree> ARCH=arm64 LOCALVERSION=-full INSTALL_MOD_STRIP=1 modules_install
+```
+
+版本串由 `LOCALVERSION=-full` 决定。
+
+部署连带影响：
+
+- **相机节点变了**：`rkjpegd` 内置后先于 USB 摄像头注册，相机从 `/dev/video1` 移到 `/dev/video2`；应用改用稳定路径
+  `/dev/v4l/by-id/usb-UGREEN_Camera_2K_UGREEN_Camera_2K_SN0001-video-index0`。
+- 启动后约 13 秒有一次 `jpeg: hardware decode failed ... Connection timed out`，之后稳定 1 ms / 30 fps，属首次任务瞬态。
+- 板端无 `mkinitramfs`/`dracut`/`update-initramfs`：initrd 以现有 cpio 为基础替换模块树后重新打包（PCIe PHY 是模块，必须包含在 initrd）。
+
+部署结果：内核 `7.4.0-rc1-npu-rt-full`，NPU 1188 MHz，应用 active，端到端 47 ms，30 fps，64 °C。
+
 ## 目录
 
 | 路径 | 内容 |
