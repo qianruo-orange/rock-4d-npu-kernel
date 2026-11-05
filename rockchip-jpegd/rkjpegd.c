@@ -1261,20 +1261,36 @@ static void rkjpegd_vdpu720_exit(struct rkjpegd_ctx *ctx)
  * Trigger the in-block soft reset and wait up to 10 ms for it to report
  * ready.  Sleeps while polling, so it must not be called from atomic context.
  */
-static void vdpu720_soft_reset(struct rkjpegd_dev *jpegd)
+static int vdpu720_soft_reset(struct rkjpegd_dev *jpegd)
 {
 	u32 status;
+	int ret;
 
-	/* Idle blocks want FORCE_SOFTRESET_VALID first, per downstream BSP. */
-	status = rkjpegd_read(jpegd, VDPU720_REG_INT);
-	if (!(status & VDPU720_DEC_E))
-		rkjpegd_write(jpegd, VDPU720_FORCE_SOFTRST, VDPU720_REG_SYS);
+	/*
+	 * A block that hung mid-decode does not necessarily honour a soft reset
+	 * requested on its own, so force it first instead of doing that only for
+	 * an idle block.  Clear the status register as well: writing the old
+	 * value back let a stale ready bit satisfy the poll below.
+	 */
+	rkjpegd_write(jpegd, 0, VDPU720_REG_INT);
+	rkjpegd_write(jpegd, VDPU720_FORCE_SOFTRST, VDPU720_REG_SYS);
+	rkjpegd_write(jpegd, VDPU720_SOFT_RST_EN, VDPU720_REG_INT);
 
-	rkjpegd_write(jpegd, status | VDPU720_SOFT_RST_EN, VDPU720_REG_INT);
-
-	if (readl_relaxed_poll_timeout(jpegd->regs + VDPU720_REG_INT, status,
-				       status & VDPU720_SOFT_RST_RDY, 5, 10000))
-		dev_warn(jpegd->dev, "soft reset timed out\n");
+	ret = readl_relaxed_poll_timeout(jpegd->regs + VDPU720_REG_INT, status,
+					 status & VDPU720_SOFT_RST_RDY, 5, 10000);
+	if (ret) {
+		/*
+		 * One retry: the first request is routinely lost while the block
+		 * is still draining a bus transaction.
+		 */
+		rkjpegd_write(jpegd, VDPU720_SOFT_RST_EN, VDPU720_REG_INT);
+		ret = readl_relaxed_poll_timeout(jpegd->regs + VDPU720_REG_INT,
+						 status, status & VDPU720_SOFT_RST_RDY,
+						 5, 10000);
+	}
+	if (ret)
+		dev_warn(jpegd->dev, "soft reset timed out (int=0x%08x)\n", status);
+	return ret;
 }
 
 /**
@@ -1289,10 +1305,13 @@ static void rkjpegd_vdpu720_reset(struct rkjpegd_ctx *ctx)
 {
 	struct rkjpegd_dev *jpegd = ctx->dev;
 
-	vdpu720_soft_reset(jpegd);
+	/*
+	 * Keep needs_reset when the block refuses to reset: the next run has to
+	 * try again instead of programming registers on an unknown state.
+	 */
+	if (vdpu720_soft_reset(jpegd) == 0)
+		jpegd->needs_reset = false;
 	rkjpegd_write(jpegd, 0, VDPU720_REG_INT);
-
-	jpegd->needs_reset = false;
 }
 
 /**
