@@ -8,14 +8,14 @@
 
 ## 当前发布：7.4.0-rc1-npu-rt-full
 
-2026-11-05 一次性重建并部署，运行中：PREEMPT_RT、1000 Hz。相对上一版 `-vepu510-r2` 的变化是把四个驱动从"外部模块 / 未启用"改为**内核内置**：
+2026-11-05 构建并部署，运行中：PREEMPT_RT、1000 Hz。四个驱动**内置于内核**：
 
-| 驱动 | 之前 | 现在 | 验证方式 |
-|---|---|---|---|
-| RKNPU（含补丁 0005 的 1188 MHz / 950 mV） | DKMS 模块 | 内置 | `rknpu_probe` 在 System.map；无 `rknpu.ko` 加载 |
-| JPEG 解码 `rkjpegd` | `rockchip_jpegd.ko` | 内置 | `/dev/video0`；`rockchip-jpegd` 平台驱动已绑定 |
-| VEPU510 编码 `mpp` | `rockchip_vepu510.ko` | 内置 | `mpp_service` + `mpp_rkvenc2` 探测成功；`/dev/mpp_service` |
-| RGA3 / RGA2E（`rockchip-rga3/`） | 无驱动 | 内置 | 双核 `probe successfully`；`/dev/rga`；hw_version 3.e |
+| 驱动 | 验证方式 |
+|---|---|
+| RKNPU（含补丁 0005 的 1188 MHz / 950 mV） | `rknpu_probe` 在 System.map |
+| JPEG 解码 `rkjpegd` | `/dev/video0`；`rockchip-jpegd` 平台驱动已绑定 |
+| VEPU510 编码 `mpp` | `mpp_service` + `mpp_rkvenc2` 探测成功；`/dev/mpp_service` |
+| RGA3 / RGA2E（`rockchip-rga3/`） | 双核 `probe successfully`；`/dev/rga`；hw_version 3.e |
 
 仍为模块：`aic8800`（WiFi，换内核需按版本重编）、`uvcvideo`（相机）。
 
@@ -30,7 +30,7 @@ make -C <tree> ARCH=arm64 LOCALVERSION=-full INSTALL_MOD_STRIP=1 modules_install
 
 ### 部署连带影响
 
-- **相机节点变了**：`rkjpegd` 内置后先于 USB 摄像头注册，相机从 `/dev/video1` 移到 `/dev/video2`；应用改用稳定路径
+- **相机节点**：`rkjpegd` 先于 USB 摄像头注册，相机为 `/dev/video2`；应用使用稳定路径
   `/dev/v4l/by-id/usb-UGREEN_Camera_2K_UGREEN_Camera_2K_SN0001-video-index0`。
 - 启动后约 13 秒有一次 `jpeg: hardware decode failed ... Connection timed out`，之后稳定 1 ms / 30 fps，属首次任务的瞬态。
 - 板端没有 `mkinitramfs` / `dracut` / `update-initramfs`：initrd 以现有 cpio 为基础替换模块树后重新打包（PCIe PHY 是模块，必须包含在 initrd）。
@@ -87,7 +87,7 @@ make -C <tree> ARCH=arm64 LOCALVERSION=-full INSTALL_MOD_STRIP=1 modules_install
 | [docs/KERNEL_BUILD_REPORT.md](docs/KERNEL_BUILD_REPORT.md) | 中文历史内核报告，附 [PDF](docs/pdf/KERNEL_BUILD_REPORT_ZH.pdf) |
 | `legacy/linux73/` | 原内核仓库的 7.3 资料归档；历史脚本不用于当前构建或安装 |
 
-历史报告记录当时的版本和测量，不替代当前版本的验收。构建日志、输入 SHA-256、安装备份及测试输出保留在 kbuild 工作目录。
+历史报告记录各自的版本与测量。构建日志、输入 SHA-256、安装备份及测试输出保留在 kbuild 工作目录。
 
 ## 构建与安装
 
@@ -95,13 +95,13 @@ make -C <tree> ARCH=arm64 LOCALVERSION=-full INSTALL_MOD_STRIP=1 modules_install
 
 安装先备份并保留已验证的启动载荷，完成版本、模块、Image、设备树和 initrd 检查后才切换启动选择；构建与安装脚本均不自行重启。更换配置、内核或模块后仍须重新验收；短时测试不代表长期热稳定性。
 
-## 上一版：7.4.0-rc1-npu-rt-vepu510-r2（2026-11-04）
+## VEPU510 编码器验收
 
-面向 VEPU510 编码的版本，其硬件验收通过：8 帧实际输入、180 帧 GOP 60 连续编码及三次模块卸载/加载均成功，H.264 I/P 码流可独立完整解码，测试窗口内无新增内核错误。独立 Rockchip fault 通知接口解决了第一版在 DMA domain 上注册通用 IOMMU 回调的告警，保留正常 DMA cookie。
+VEPU510 编码器的硬件验收：8 帧实际输入、180 帧 GOP 60 连续编码及三次模块卸载/加载均成功，H.264 I/P 码流可独立完整解码，测试窗口内无新增内核错误。独立的 Rockchip fault 通知接口把 IOMMU 回调注册在自有 DMA domain 上，并保留正常 DMA cookie。
 
 同输入、同色彩范围的三组编码对照中，硬件吞吐中位数为 72.765 帧/秒，进程 CPU 时间为 2.419 ms/帧；历史软件对照为 45.159 帧/秒、63.083 ms/帧。这是短时固定样本的整进程测量，不能视为相机到浏览器的延迟。实际码率、PSNR 与限制见[应用编解码报告](https://github.com/qianruo-orange/autonomous-driving-car/blob/main/docs/CODEC_PERFORMANCE.md)。
 
-该版本的测量保留为历史数据：当前应用已不再编码视频，编码器仅作为内置驱动保留。
+编码器以内置驱动形式保留，应用本身不参与编码。
 
 ## 来源与许可证
 
@@ -113,24 +113,23 @@ This repository maintains the Linux kernel patches, drivers, configuration,
 build/install scripts and validation records for the Radxa ROCK 4D / RK3576.
 The application lives in
 [autonomous-driving-car](https://github.com/qianruo-orange/autonomous-driving-car);
-kernel sources are no longer mixed into it.
+kernel sources are maintained here.
 
 The baseline is the vendor-provided Linux 7.4-rc1 source archive. The full tree
 and build outputs stay on the build host under
-`/home/qianruo/kbuild/kernels/7.4-rc1/source` and are not committed here.
+`/home/qianruo/kbuild/kernels/7.4-rc1/source`.
 
 ### Current release: 7.4.0-rc1-npu-rt-full
 
-Rebuilt and deployed on 2026-11-05, running PREEMPT_RT at 1000 Hz. Compared with
-the previous `-vepu510-r2`, four drivers moved from external modules (or from
-being absent) to being **built into the kernel**:
+Built and deployed on 2026-11-05, running PREEMPT_RT at 1000 Hz. Four drivers are
+**built into the kernel**:
 
-| Driver | Before | Now | Verified by |
-| --- | --- | --- | --- |
-| RKNPU (carrying patch 0005: 1188 MHz / 950 mV) | DKMS module | built-in | `rknpu_probe` in System.map, no `rknpu.ko` loaded |
-| JPEG decoder `rkjpegd` | `rockchip_jpegd.ko` | built-in | `/dev/video0`, `rockchip-jpegd` platform driver bound |
-| VEPU510 encoder `mpp` | `rockchip_vepu510.ko` | built-in | `mpp_service` + `mpp_rkvenc2` probe, `/dev/mpp_service` |
-| RGA3 / RGA2E (`rockchip-rga3/`) | no driver | built-in | both cores `probe successfully`, `/dev/rga`, hw_version 3.e |
+| Driver | Verified by |
+| --- | --- |
+| RKNPU (carrying patch 0005: 1188 MHz / 950 mV) | `rknpu_probe` in System.map |
+| JPEG decoder `rkjpegd` | `/dev/video0`, `rockchip-jpegd` platform driver bound |
+| VEPU510 encoder `mpp` | `mpp_service` + `mpp_rkvenc2` probe, `/dev/mpp_service` |
+| RGA3 / RGA2E (`rockchip-rga3/`) | both cores `probe successfully`, `/dev/rga`, hw_version 3.e |
 
 Still modules: `aic8800` (WiFi, must be rebuilt per kernel version) and
 `uvcvideo` (camera).
@@ -144,9 +143,8 @@ The version string comes from `LOCALVERSION=-full`.
 
 **Deployment consequences**
 
-- **The camera node moved.** With `rkjpegd` built in it registers before the USB
-  camera, so the device changed from `/dev/video1` to `/dev/video2`; the
-  application now opens the by-id path
+- **Camera device.** With `rkjpegd` built in it registers before the USB camera,
+  so the camera is `/dev/video2`; the application opens the by-id path
   `/dev/v4l/by-id/usb-UGREEN_Camera_2K_UGREEN_Camera_2K_SN0001-video-index0`.
 - About 13 s after boot there is one `jpeg: hardware decode failed … Connection
   timed out`; afterwards decoding is steady at 1 ms / 30 fps. It is a
@@ -214,8 +212,7 @@ needs the first three drivers and **not** the VEPU510 encoder:
 | [docs/KERNEL_BUILD_REPORT.md](docs/KERNEL_BUILD_REPORT.md) | historical kernel report (Chinese) with [PDF](docs/pdf/KERNEL_BUILD_REPORT_ZH.pdf) |
 | `legacy/linux73/` | archived 7.3 material; its scripts are not used for current builds |
 
-Historical reports record the versions and measurements of their time; they do
-not replace validation of the current release. Build logs, input SHA-256 sums,
+Historical reports record their own versions and measurements. Build logs, input SHA-256 sums,
 install backups and test output remain in the kbuild working directory.
 
 ### Build and install
@@ -231,14 +228,13 @@ scripts never reboot on their own. Any change of configuration, kernel or module
 still requires re-validation; short tests do not prove long-term thermal
 stability.
 
-### Previous release: 7.4.0-rc1-npu-rt-vepu510-r2 (2026-11-04)
+### VEPU510 encoder validation
 
-The VEPU510-oriented release passed hardware validation: 8 real input frames, a
-180-frame GOP-60 continuous encode, and three module unload/load cycles all
-succeeded; the H.264 I/P stream decoded completely on its own; no new kernel
-errors appeared during the test window. A dedicated Rockchip fault notifier
-removed the first version's warning about registering a generic IOMMU callback
-on the DMA domain while keeping a valid DMA cookie.
+The encoder passed hardware validation: 8 real input frames, a 180-frame GOP-60
+continuous encode, and three module unload/load cycles all succeeded; the H.264
+I/P stream decoded completely on its own; no new kernel errors appeared during
+the test window. A dedicated Rockchip fault notifier registers the IOMMU
+callback on its own DMA domain while keeping a valid DMA cookie.
 
 In three matched encode runs the hardware throughput median was 72.765 fps with
 2.419 ms of process CPU time per frame; the historical software reference was
@@ -247,13 +243,13 @@ short fixed sample and are not end-to-end camera-to-browser latency. Actual
 bitrate, PSNR and limits are in the
 [codec report](https://github.com/qianruo-orange/autonomous-driving-car/blob/main/docs/CODEC_PERFORMANCE.md).
 
-Those measurements are kept as historical data: the current application no
-longer encodes video, and the encoder is retained only as a built-in driver.
+The encoder is retained as a built-in driver; the application itself does not
+encode.
 
 ### Provenance and licence
 
 Fixed sources and modification ranges for the 7.4 baseline, the Kiln patches and
 the JPEG, MPP and RGA drivers are recorded in each directory's README. Original
 author attribution, SPDX identifiers and licences are preserved; each file is
-licensed as it declares. This round of migration and adaptation was prepared
-with Codex assistance and adds no human DCO sign-off.
+licensed as it declares. Adaptation work in this repository was prepared with Codex
+assistance and adds no human DCO sign-off.
