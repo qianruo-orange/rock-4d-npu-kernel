@@ -25,7 +25,6 @@
 | `0003-aic8800-cfg80211.patch` | 原始 `aic8800-usb-5.0-kiln` 包根目录；适配 7.4 的密钥类型接口，保持旧版本兼容 |
 | `0004-aic8800-parallelism.patch` | AIC 包根目录，在 0003 之后；移除厂商 Makefile 强制覆盖并行度的设置 |
 | `0005-kiln-rknpu-clock-voltage.patch` | Kiln NPU 包根目录，在 `fetch-vendor-driver.sh` 与 mainline shims 之后；固定 NPU 频率与供电轨，默认 1188 MHz / 950 mV |
-| `0006-dts-decoder-encoder-clock.patch` | 内核根目录，在 0002 之后；把 VEPU510 编码器固定时钟从 200/100/200 提升到 500/100/594 MHz。JPEG 解码器的 1000 MHz 超频经实测无收益且有偶发长解码，已回退到默认 702 MHz，补丁不再包含 |
 
 `0005` 起因于本移植不编译 `rknpu_devfreq.o`：`rknpu_power_on()` 每次上电都硬写 594 MHz，且驱动按 `rknpu-supply` 查找电源，而板级设备树使用的是 `npu-supply`，供电轨因此从未被绑定。补丁新增 `npu_freq_mhz`、`npu_volt_mv` 两个模块参数，补上 `npu-supply` 回退，并保证先升压再升频。
 
@@ -104,8 +103,3 @@ kbuild/
 ```
 
 构建脚本把新生成的软件包收集到 `packages/`。根目录保留八个必要的兼容软链接，供既有脚本、模型清单和虚拟环境使用；它们不代表重复副本。
-
-`0006` 的依据与实测结论：`aclk_jpeg_root` 的 mux 支持 gpll/cpll/aupll/spll，默认挂 SPLL 的 702 MHz；改动后实测 1000 MHz 生效，
-但 64 帧统计的解码耗时没有变化（升级前 7.18 ms、升级后 7.71 ms，差异在噪声内），说明 JPEG 解码受 DMA/内存带宽而非时钟限制。
-编码器部分同理：应用当前采用 MJPEG 无损透传，全程不编码，提升 VEPU510 时钟对现有性能没有影响，只有将来启用 H.264/H.265 录像时才有意义。
-因此本补丁保留时钟配置以便后续编码路径使用，但不应期待解码延迟收益。
