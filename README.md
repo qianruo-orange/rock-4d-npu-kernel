@@ -19,6 +19,7 @@ R2 的 VEPU510 硬件验收通过：8 帧实际输入、180 帧 GOP 60 连续编
 | [rock4d-linux74](rock4d-linux74/README.md) | 7.4 来源、NPU/JPEG/Wi-Fi/蓝牙补丁与配置 |
 | [rockchip-jpegd](rockchip-jpegd/README.md) | JPEG 驱动及 RK3576 适配 |
 | `live-overlay/` | JPEG 设备树临时 overlay 辅助模块 |
+| `rockchip-rga3/` | RGA2E（2D 加速器）驱动移植包，含 `rk3576-rga2.dtsi` 设备树片段；已适配 7.4 的三处 API、编译通过，**未部署**（换内核前需先并回 vepu510 MPP 源码），详见包内 README |
 | [rockchip-vepu510-mpp](rockchip-vepu510-mpp/README.md) | VEPU510 MPP 外置驱动、内核集成补丁、来源清单和许可证 |
 | `scripts/build_kernel74.sh`、`scripts/install_kernel74.sh` | 原 7.4 基础版的构建与安装流程 |
 | `scripts/install_jpeg_decoder.sh` | 为当前运行内核构建、安装 JPEG 驱动 |
