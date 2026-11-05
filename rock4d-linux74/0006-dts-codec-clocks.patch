@@ -1,0 +1,26 @@
+diff -ruN a/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts b/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts
+--- a/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts	2026-11-05 04:28:53.702273271 +0800
++++ b/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts	2026-11-05 08:55:23.338656317 +0800
+@@ -885,6 +885,10 @@
+ 
+ &jpegd {
+ 	status = "okay";
++	/* 解码器超频：aclk_jpeg_root 的 mux 支持 gpll/cpll/aupll/spll，
++	   默认 spll 702 MHz，改挂 cpll 取 1000 MHz（+42%）。 */
++	assigned-clocks = <&cru ACLK_JPEG_ROOT>;
++	assigned-clock-rates = <1000000000>;
+ };
+ 
+ &jpeg_mmu {
+diff -ruN a/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi b/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi
+--- a/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi	2026-11-05 04:28:53.714268325 +0800
++++ b/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi	2026-11-05 08:55:23.342389988 +0800
+@@ -24,7 +24,7 @@
+ 		/* Fixed bring-up clocks; vendor OPP/DVFS is not enabled. */
+ 		assigned-clocks = <&cru ACLK_VEPU0_ROOT>,
+ 				  <&cru HCLK_VEPU0_ROOT>, <&cru CLK_VEPU0_CORE>;
+-		assigned-clock-rates = <200000000>, <100000000>, <200000000>;
++		assigned-clock-rates = <500000000>, <100000000>, <594000000>;
+ 		resets = <&cru SRST_A_VEPU0>, <&cru SRST_H_VEPU0>,
+ 			 <&cru SRST_VEPU0_CORE>;
+ 		reset-names = "video_a", "video_h", "video_core";

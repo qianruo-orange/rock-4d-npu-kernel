@@ -25,6 +25,7 @@
 | `0003-aic8800-cfg80211.patch` | 原始 `aic8800-usb-5.0-kiln` 包根目录；适配 7.4 的密钥类型接口，保持旧版本兼容 |
 | `0004-aic8800-parallelism.patch` | AIC 包根目录，在 0003 之后；移除厂商 Makefile 强制覆盖并行度的设置 |
 | `0005-kiln-rknpu-clock-voltage.patch` | Kiln NPU 包根目录，在 `fetch-vendor-driver.sh` 与 mainline shims 之后；固定 NPU 频率与供电轨，默认 1188 MHz / 950 mV |
+| `0006-dts-codec-clocks.patch` | 内核根目录，在 0002 之后；JPEG 解码器 aclk 由 SPLL 702 MHz 改挂 CPLL 取 1000 MHz，VEPU510 编码器固定时钟由 200/100/200 提升到 500/100/594 MHz |
 
 `0005` 起因于本移植不编译 `rknpu_devfreq.o`：`rknpu_power_on()` 每次上电都硬写 594 MHz，且驱动按 `rknpu-supply` 查找电源，而板级设备树使用的是 `npu-supply`，供电轨因此从未被绑定。补丁新增 `npu_freq_mhz`、`npu_volt_mv` 两个模块参数，补上 `npu-supply` 回退，并保证先升压再升频。
 
@@ -103,3 +104,8 @@ kbuild/
 ```
 
 构建脚本把新生成的软件包收集到 `packages/`。根目录保留八个必要的兼容软链接，供既有脚本、模型清单和虚拟环境使用；它们不代表重复副本。
+
+`0006` 的实测依据：JPEG 解码器的 1000 MHz 在 64 帧统计下没有带来解码提速（7.18 ms → 7.71 ms，噪声内），
+说明该解码通路受内存带宽或串行 Huffman 限制而非时钟限制；偶发的 30–50 ms 长解码在回退到 702 MHz 后消失、
+重新启用后复现，因此这条超频属于"按需保留"的配置项，不应期待延迟收益。VEPU510 编码器当前不被应用使用
+（录像为 MJPEG 无损透传），提升时钟只对将来启用 H.264/H.265 编码有意义。
