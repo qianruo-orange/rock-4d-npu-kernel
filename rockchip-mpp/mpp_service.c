@@ -465,7 +465,7 @@ static int mpp_service_probe(struct platform_device *pdev)
 	of_property_read_u32(np, "rockchip,iommu-shared-mask",
 			     &srv->iommu_shared_mask);
 
-	/* The encoder's probe needs the fully initialized service. */
+	/* Subdriver probes need the fully initialized service. */
 	platform_set_drvdata(pdev, srv);
 	ret = mpp_procfs_init(srv);
 	if (ret)
@@ -476,7 +476,12 @@ static int mpp_service_probe(struct platform_device *pdev)
 	if (ret)
 		goto fail_proc;
 
-	/* Publish only after initializing the service and registering its driver. */
+	ret = mpp_add_driver(srv, MPP_DRIVER_RKVDEC2,
+			     &rockchip_rkvdec2_driver, "grf_rkvdec");
+	if (ret)
+		goto fail_driver;
+
+	/* Publish only after registering both codec drivers. */
 	ret = mpp_register_service(srv, MPP_SERVICE_NAME);
 	if (ret)
 		goto fail_driver;
@@ -485,6 +490,7 @@ static int mpp_service_probe(struct platform_device *pdev)
 	return 0;
 
 fail_driver:
+	mpp_remove_driver(srv, MPP_DRIVER_RKVDEC2);
 	mpp_remove_driver(srv, MPP_DRIVER_RKVENC2);
 fail_proc:
 	mpp_procfs_remove(srv);
@@ -511,6 +517,7 @@ static void mpp_service_remove(struct platform_device *pdev)
 		if (queue && queue->kworker_task)
 			kthread_flush_worker(&queue->worker);
 	}
+	mpp_remove_driver(srv, MPP_DRIVER_RKVDEC2);
 	mpp_remove_driver(srv, MPP_DRIVER_RKVENC2);
 	mpp_stop_workers(srv);
 	mpp_procfs_remove(srv);

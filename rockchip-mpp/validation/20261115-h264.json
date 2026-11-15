@@ -1,0 +1,287 @@
+{
+  "release": "7.4.0-rc2-npu-rt-full-rkmppdec",
+  "boot_id": "14cf56a4-0466-4a30-8be8-e5b14ea3c367",
+  "directory": "/home/qianruo/kbuild/media/rkmpp-decoder-linux74-prep-20261115-0144/records/validation/20261115-221817",
+  "cases": [
+    {
+      "name": "720p-ip",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.308074,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "720p-b",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.303585,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "1080p",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.620463,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "720p-long",
+      "decoder_exit": 0,
+      "frames": 300,
+      "decoder_errors": 0,
+      "seconds": 1.42493,
+      "pixels": {
+        "expected_frames": 300,
+        "actual_frames": 300,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "resolution-change",
+      "decoder_exit": 0,
+      "frames": 120,
+      "decoder_errors": 0,
+      "seconds": 1.017333,
+      "pixels": {
+        "expected_frames": 120,
+        "actual_frames": 120,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "portrait",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.298521,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "concurrent-ip",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.333265,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "concurrent-b",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.304677,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-0",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.298636,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-1",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.292776,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-2",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.296695,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-3",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.29147,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-4",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.286139,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-5",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.284331,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-6",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.292101,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "reopen-7",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.281516,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    },
+    {
+      "name": "truncated",
+      "decoder_exit": 1,
+      "frames": 30,
+      "decoder_errors": 1,
+      "seconds": 0.144604,
+      "passed": true
+    },
+    {
+      "name": "recovery",
+      "decoder_exit": 0,
+      "frames": 60,
+      "decoder_errors": 0,
+      "seconds": 0.28497,
+      "pixels": {
+        "expected_frames": 60,
+        "actual_frames": 60,
+        "pixel_hash_mismatch_count": 0,
+        "first_mismatches": [],
+        "passed": true
+      },
+      "passed": true
+    }
+  ],
+  "status": "passed",
+  "capabilities": {
+    "uid": 0,
+    "library": "/usr/local/lib/librockchip_mpp.so",
+    "soc": "radxa,rock-4d rockchip,rk3576",
+    "vcodec_mask": "0x10200",
+    "kernel_rkvdec_present": true,
+    "kernel_rkvenc_present": true,
+    "library_h264_dec_format_check": 0,
+    "note": "Format-list support alone does not prove runtime hardware support.",
+    "initialize_requested": true,
+    "create_ret": 0,
+    "h264_decoder_init_ret": 0,
+    "destroy_ret": 0
+  },
+  "fatal_kernel_messages": [],
+  "finished_at": 1794752307.8074515
+}

@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
+/* RK3576 VDPU383 using the MPP service with standard DMA-BUF mappings. */
+
+&vdec {
+	status = "disabled";
+};
+
+&vdec_mmu {
+	status = "okay";
+};
+
+&mpp_srv {
+	rockchip,taskqueue-count = <2>;
+	rockchip,resetgroup-count = <2>;
+};
+
+/ {
+	rkvdec_mpp: video-codec@27b00100 {
+		compatible = "rockchip,rkv-decoder-rk3576";
+		reg = <0x0 0x27b00100 0x0 0x600>,
+		      <0x0 0x27b00000 0x0 0x100>;
+		reg-names = "regs", "link";
+		interrupts = <GIC_SPI 308 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_RKVDEC_ROOT>, <&cru HCLK_RKVDEC>,
+			 <&cru CLK_RKVDEC_CORE>, <&cru ACLK_RKVDEC_ROOT_BAK>,
+			 <&cru CLK_RKVDEC_HEVC_CA>;
+		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core",
+			      "clk_cabac", "clk_hevc_cabac";
+		assigned-clocks = <&cru ACLK_RKVDEC_ROOT>, <&cru CLK_RKVDEC_CORE>,
+				  <&cru ACLK_RKVDEC_ROOT_BAK>, <&cru CLK_RKVDEC_HEVC_CA>;
+		assigned-clock-rates = <600000000>, <600000000>,
+				       <500000000>, <1000000000>;
+		resets = <&cru SRST_A_RKVDEC_BIU>, <&cru SRST_H_RKVDEC_BIU>,
+			 <&cru SRST_H_RKVDEC>, <&cru SRST_RKVDEC_CORE>,
+			 <&cru SRST_RKVDEC_HEVC_CA>;
+		reset-names = "video_a", "video_h", "video_cabac",
+			      "video_core", "video_hevc_cabac";
+		iommus = <&vdec_mmu>;
+		power-domains = <&power RK3576_PD_VDEC>;
+		rockchip,srv = <&mpp_srv>;
+		rockchip,taskqueue-node = <1>;
+		rockchip,resetgroup-node = <1>;
+		rockchip,task-capacity = <1>;
+		rockchip,disable-auto-freq;
+	};
+};

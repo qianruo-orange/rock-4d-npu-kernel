@@ -757,7 +757,7 @@ int mpp_dev_reset(struct mpp_dev *mpp)
 		enable_irq(mpp->iommu_info->irq);
 
 	if (ret)
-		dev_err(mpp->dev, "reset failed: %d; encoder blocked\n", ret);
+		dev_err(mpp->dev, "reset failed: %d; codec blocked\n", ret);
 	else
 		dev_info(mpp->dev, "reset done\n");
 

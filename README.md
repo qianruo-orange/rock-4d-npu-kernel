@@ -253,3 +253,7 @@ the JPEG, MPP and RGA drivers are recorded in each directory's README. Original
 author attribution, SPDX identifiers and licences are preserved; each file is
 licensed as it declares. Adaptation work in this repository was prepared with Codex
 assistance and adds no human DCO sign-off.
+
+## 2026-11-15 H.264 硬件解码
+
+[VDPU383 MPP 移植和验证](rockchip-mpp/)已在 Linux 7.4-rc2 实际通过 18 项测试。当前配置为 `rock4d-linux74/config-npu-rt-rkmppdec`，原内核保留回退。
