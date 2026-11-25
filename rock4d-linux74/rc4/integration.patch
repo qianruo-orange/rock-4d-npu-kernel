@@ -1,0 +1,1140 @@
+diff --git a/arch/arm64/boot/dts/rockchip/rk3576-rga2.dtsi b/arch/arm64/boot/dts/rockchip/rk3576-rga2.dtsi
+new file mode 100644
+index 0000000..eea3157
+--- /dev/null
++++ b/arch/arm64/boot/dts/rockchip/rk3576-rga2.dtsi
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
++/*
++ * RK3576 RGA2E 双核节点，供 rk3576.dtsi 使用（rockchip-rga3 驱动）。
++ * IOMMU 采用主线 rockchip,rk3568-iommu，与 rkjpegd 的用法一致。
++ */
++
++/ {
++	soc {
++		rga2_core0: rga@27920000 {
++			compatible = "rockchip,rga2";
++			reg = <0x0 0x27920000 0x0 0x1000>;
++			interrupts = <GIC_SPI 328 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "rga2_core0_irq";
++			clocks = <&cru ACLK_RGA2E_0>, <&cru HCLK_RGA2E_0>, <&cru CLK_CORE_RGA2E_0>;
++			clock-names = "aclk_rga", "hclk_rga", "clk_rga";
++			power-domains = <&power RK3576_PD_VPU>;
++			iommus = <&rga2_core0_mmu>;
++			status = "disabled";
++		};
++
++		rga2_core0_mmu: iommu@27920f00 {
++			compatible = "rockchip,rk3568-iommu";
++			reg = <0x0 0x27920f00 0x0 0x100>;
++			interrupts = <GIC_SPI 328 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "rga2_0_mmu";
++			clocks = <&cru ACLK_RGA2E_0>, <&cru HCLK_RGA2E_0>;
++			clock-names = "aclk", "iface";
++			power-domains = <&power RK3576_PD_VPU>;
++			#iommu-cells = <0>;
++			status = "disabled";
++		};
++
++		rga2_core1: rga@27930000 {
++			compatible = "rockchip,rga2";
++			reg = <0x0 0x27930000 0x0 0x1000>;
++			interrupts = <GIC_SPI 329 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "rga2_core1_irq";
++			clocks = <&cru ACLK_RGA2E_1>, <&cru HCLK_RGA2E_1>, <&cru CLK_CORE_RGA2E_1>;
++			clock-names = "aclk_rga", "hclk_rga", "clk_rga";
++			power-domains = <&power RK3576_PD_VPU>;
++			iommus = <&rga2_core1_mmu>;
++			status = "disabled";
++		};
++
++		rga2_core1_mmu: iommu@27930f00 {
++			compatible = "rockchip,rk3568-iommu";
++			reg = <0x0 0x27930f00 0x0 0x100>;
++			interrupts = <GIC_SPI 329 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "rga2_1_mmu";
++			clocks = <&cru ACLK_RGA2E_1>, <&cru HCLK_RGA2E_1>;
++			clock-names = "aclk", "iface";
++			power-domains = <&power RK3576_PD_VPU>;
++			#iommu-cells = <0>;
++			status = "disabled";
++		};
++	};
++};
+diff --git a/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts b/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts
+index f068794..ee44bb2 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts
++++ b/arch/arm64/boot/dts/rockchip/rk3576-rock-4d.dts
+@@ -442,6 +442,7 @@
+ 			};
+ 
+ 			vdd_npu_s0: dcdc-reg2 {
++				regulator-always-on;
+ 				regulator-boot-on;
+ 				regulator-enable-ramp-delay = <400>;
+ 				regulator-min-microvolt = <550000>;
+@@ -868,3 +869,50 @@
+ 		remote-endpoint = <&hdmi_in_vp0>;
+ 	};
+ };
++
++&rknpu {
++	npu-supply = <&vdd_npu_s0>;
++	status = "okay";
++};
++
++&rknpu_mmu_0 {
++	status = "okay";
++};
++
++&rknpu_mmu_1 {
++	status = "okay";
++};
++
++&jpegd {
++	status = "okay";
++	/*
++	 * 解码器超频：aclk_jpeg_root 的 mux 支持 gpll/cpll/aupll/spll，
++	 * 默认 spll 702 MHz，改挂 cpll 取 1000 MHz（+42%）。
++	 */
++	assigned-clocks = <&cru ACLK_JPEG_ROOT>;
++	assigned-clock-rates = <1000000000>;
++};
++
++&jpeg_mmu {
++	status = "okay";
++};
++
++#include "rk3576-vepu510-mpp.dtsi"
++#include "rk3576-vdpu383-mpp.dtsi"
++#include "rk3576-rga2.dtsi"
++
++&rga2_core0 {
++	status = "okay";
++};
++
++&rga2_core0_mmu {
++	status = "okay";
++};
++
++&rga2_core1 {
++	status = "okay";
++};
++
++&rga2_core1_mmu {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/rockchip/rk3576-vdpu383-mpp.dtsi b/arch/arm64/boot/dts/rockchip/rk3576-vdpu383-mpp.dtsi
+new file mode 100644
+index 0000000..c6b9568
+--- /dev/null
++++ b/arch/arm64/boot/dts/rockchip/rk3576-vdpu383-mpp.dtsi
+@@ -0,0 +1,46 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
++/* RK3576 VDPU383 using the MPP service with standard DMA-BUF mappings. */
++
++&vdec {
++	status = "disabled";
++};
++
++&vdec_mmu {
++	status = "okay";
++};
++
++&mpp_srv {
++	rockchip,taskqueue-count = <2>;
++	rockchip,resetgroup-count = <2>;
++};
++
++/ {
++	rkvdec_mpp: video-codec@27b00100 {
++		compatible = "rockchip,rkv-decoder-rk3576";
++		reg = <0x0 0x27b00100 0x0 0x600>,
++		      <0x0 0x27b00000 0x0 0x100>;
++		reg-names = "regs", "link";
++		interrupts = <GIC_SPI 308 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&cru ACLK_RKVDEC_ROOT>, <&cru HCLK_RKVDEC>,
++			 <&cru CLK_RKVDEC_CORE>, <&cru ACLK_RKVDEC_ROOT_BAK>,
++			 <&cru CLK_RKVDEC_HEVC_CA>;
++		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core",
++			      "clk_cabac", "clk_hevc_cabac";
++		assigned-clocks = <&cru ACLK_RKVDEC_ROOT>, <&cru CLK_RKVDEC_CORE>,
++				  <&cru ACLK_RKVDEC_ROOT_BAK>, <&cru CLK_RKVDEC_HEVC_CA>;
++		assigned-clock-rates = <600000000>, <600000000>,
++				       <500000000>, <1000000000>;
++		resets = <&cru SRST_A_RKVDEC_BIU>, <&cru SRST_H_RKVDEC_BIU>,
++			 <&cru SRST_H_RKVDEC>, <&cru SRST_RKVDEC_CORE>,
++			 <&cru SRST_RKVDEC_HEVC_CA>;
++		reset-names = "video_a", "video_h", "video_cabac",
++			      "video_core", "video_hevc_cabac";
++		iommus = <&vdec_mmu>;
++		power-domains = <&power RK3576_PD_VDEC>;
++		rockchip,srv = <&mpp_srv>;
++		rockchip,taskqueue-node = <1>;
++		rockchip,resetgroup-node = <1>;
++		rockchip,task-capacity = <1>;
++		rockchip,disable-auto-freq;
++	};
++};
+diff --git a/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi b/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi
+new file mode 100644
+index 0000000..a53473d
+--- /dev/null
++++ b/arch/arm64/boot/dts/rockchip/rk3576-vepu510-mpp.dtsi
+@@ -0,0 +1,49 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR MIT)
++/* Experimental single-core MPP encoder integration for mainline RK3576. */
++
++#include <dt-bindings/clock/rockchip,rk3576-cru.h>
++#include <dt-bindings/interrupt-controller/arm-gic.h>
++#include <dt-bindings/power/rockchip,rk3576-power.h>
++#include <dt-bindings/reset/rockchip,rk3576-cru.h>
++
++/ {
++	mpp_srv: mpp-srv {
++		compatible = "rockchip,mpp-service";
++		rockchip,taskqueue-count = <1>;
++		rockchip,resetgroup-count = <1>;
++	};
++
++	rkvenc0: video-codec@27a00000 {
++		compatible = "rockchip,rkv-encoder-rk3576";
++		reg = <0x0 0x27a00000 0x0 0x6000>;
++		interrupts = <GIC_SPI 310 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "irq_vepu0";
++		clocks = <&cru ACLK_VEPU0>, <&cru HCLK_VEPU0>,
++			 <&cru CLK_VEPU0_CORE>;
++		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core";
++		/* Fixed bring-up clocks; vendor OPP/DVFS is not enabled. */
++		assigned-clocks = <&cru ACLK_VEPU0_ROOT>,
++				  <&cru HCLK_VEPU0_ROOT>, <&cru CLK_VEPU0_CORE>;
++		assigned-clock-rates = <500000000>, <100000000>, <594000000>;
++		resets = <&cru SRST_A_VEPU0>, <&cru SRST_H_VEPU0>,
++			 <&cru SRST_VEPU0_CORE>;
++		reset-names = "video_a", "video_h", "video_core";
++		iommus = <&rkvenc0_mmu>;
++		power-domains = <&power RK3576_PD_VEPU0>;
++		rockchip,srv = <&mpp_srv>;
++		rockchip,taskqueue-node = <0>;
++		rockchip,resetgroup-node = <0>;
++		rockchip,task-capacity = <8>;
++	};
++
++	rkvenc0_mmu: iommu@27a0f000 {
++		compatible = "rockchip,rk3576-iommu", "rockchip,rk3568-iommu";
++		reg = <0x0 0x27a0f000 0x0 0x40>;
++		interrupts = <GIC_SPI 311 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&cru ACLK_VEPU0>, <&cru HCLK_VEPU0>;
++		clock-names = "aclk", "iface";
++		#iommu-cells = <0>;
++		rockchip,disable-mmu-reset;
++		power-domains = <&power RK3576_PD_VEPU0>;
++	};
++};
+diff --git a/arch/arm64/boot/dts/rockchip/rk3576.dtsi b/arch/arm64/boot/dts/rockchip/rk3576.dtsi
+index 9d9e9d7..b76ce52 100644
+--- a/arch/arm64/boot/dts/rockchip/rk3576.dtsi
++++ b/arch/arm64/boot/dts/rockchip/rk3576.dtsi
+@@ -863,6 +863,78 @@
+ 			reg = <0x0 0x26018000 0x0 0x2000>;
+ 		};
+ 
++		/*
++		 * Kiln: vendor-shaped RK3576 NPU for the out-of-tree rknpu (v0.9.8) driver.
++		 * Mainline has no NPU compute node (its accel/rocket path uses a different
++		 * rknn_core layout), so Kiln adds this one. clk_npu is the DSU clock taken
++		 * via CRU CLK_RKNN_DSU0 (the driver bumps it to 594 MHz; the SCMI route is
++		 * clamped to 198 MHz by this board's firmware and the NPU core then wedges).
++		 * PCLK_NPUTOP_ROOT ("pclk") MUST be listed: it clocks the NPU-top control
++		 * block, so without it reading the core version register async-SErrors.
++		 */
++		rknpu: npu@27700000 {
++			compatible = "rockchip,rk3576-rknpu";
++			reg = <0x0 0x27700000 0x0 0x8000>,
++			      <0x0 0x27708000 0x0 0x8000>;
++			interrupts = <GIC_SPI 247 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 248 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "npu0_irq", "npu1_irq";
++			clocks = <&cru CLK_RKNN_DSU0>, <&cru ACLK_RKNN0>,
++				 <&cru ACLK_RKNN1>, <&cru HCLK_RKNN_ROOT>,
++				 <&cru ACLK_RKNN_CBUF>, <&cru HCLK_RKNN_CBUF>,
++				 <&cru PCLK_NPUTOP_ROOT>;
++			clock-names = "clk_npu", "aclk0", "aclk1", "hclk_root",
++				      "aclk_cbuf", "hclk_cbuf", "pclk";
++			assigned-clocks = <&cru CLK_RKNN_DSU0>;
++			assigned-clock-rates = <198000000>;
++			resets = <&cru SRST_A_RKNN0>, <&cru SRST_A_RKNN1>,
++				 <&cru SRST_A_RKNN_CBUF>, <&cru SRST_H_RKNN_CBUF>;
++			reset-names = "srst_a0", "srst_a1", "srst_a_cbuf", "srst_h_cbuf";
++			power-domains = <&power RK3576_PD_NPU0>, <&power RK3576_PD_NPU1>;
++			power-domain-names = "npu0", "npu1";
++			operating-points-v2 = <&npu_opp_table>;
++			iommus = <&rknpu_mmu_0>, <&rknpu_mmu_1>;
++			#cooling-cells = <2>;
++			dynamic-power-coefficient = <2570>;
++			status = "disabled";
++
++			npu_opp_table: opp-table {
++				compatible = "operating-points-v2";
++				opp-300000000 { opp-hz = /bits/ 64 <300000000>; opp-microvolt = <725000>; };
++				opp-400000000 { opp-hz = /bits/ 64 <400000000>; opp-microvolt = <725000>; };
++				opp-500000000 { opp-hz = /bits/ 64 <500000000>; opp-microvolt = <725000>; };
++				opp-600000000 { opp-hz = /bits/ 64 <600000000>; opp-microvolt = <725000>; };
++				opp-700000000 { opp-hz = /bits/ 64 <700000000>; opp-microvolt = <725000>; };
++				opp-800000000 { opp-hz = /bits/ 64 <800000000>; opp-microvolt = <800000>; };
++			};
++		};
++
++		rknpu_mmu_0: iommu@27702000 {
++			compatible = "rockchip,rk3576-iommu", "rockchip,rk3568-iommu";
++			reg = <0x0 0x27702000 0x0 0x100>,
++			      <0x0 0x27702100 0x0 0x100>;
++			interrupts = <GIC_SPI 247 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cru ACLK_RKNN0>, <&cru HCLK_RKNN_ROOT>,
++				 <&cru CLK_RKNN_DSU0>, <&cru ACLK_RKNN_CBUF>,
++				 <&cru HCLK_RKNN_CBUF>;
++			#iommu-cells = <0>;
++			power-domains = <&power RK3576_PD_NPU0>;
++			status = "disabled";
++		};
++
++		rknpu_mmu_1: iommu@2770a000 {
++			compatible = "rockchip,rk3576-iommu", "rockchip,rk3568-iommu";
++			reg = <0x0 0x2770a000 0x0 0x100>,
++			      <0x0 0x2770a100 0x0 0x100>;
++			interrupts = <GIC_SPI 248 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cru ACLK_RKNN1>, <&cru HCLK_RKNN_ROOT>,
++				 <&cru CLK_RKNN_DSU0>, <&cru ACLK_RKNN_CBUF>,
++				 <&cru HCLK_RKNN_CBUF>;
++			#iommu-cells = <0>;
++			power-domains = <&power RK3576_PD_NPU1>;
++			status = "disabled";
++		};
++
+ 		vo0_grf: syscon@2601a000 {
+ 			compatible = "rockchip,rk3576-vo0-grf", "syscon";
+ 			reg = <0x0 0x2601a000 0x0 0x2000>;
+@@ -1085,14 +1157,22 @@
+ 						power-domain@RK3576_PD_NPU0 {
+ 							reg = <RK3576_PD_NPU0>;
+ 							clocks = <&cru HCLK_RKNN_ROOT>,
+-								 <&cru ACLK_RKNN0>;
++								 <&cru ACLK_RKNN0>,
++								 <&cru CLK_RKNN_DSU0>,
++								 <&cru ACLK_RKNN_CBUF>,
++								 <&cru HCLK_RKNN_CBUF>;
++							resets = <&cru SRST_A_RKNN0_BIU>;
+ 							pm_qos = <&qos_npu_m0>;
+ 							#power-domain-cells = <0>;
+ 						};
+ 						power-domain@RK3576_PD_NPU1 {
+ 							reg = <RK3576_PD_NPU1>;
+ 							clocks = <&cru HCLK_RKNN_ROOT>,
+-								 <&cru ACLK_RKNN1>;
++								 <&cru ACLK_RKNN1>,
++								 <&cru CLK_RKNN_DSU0>,
++								 <&cru ACLK_RKNN_CBUF>,
++								 <&cru HCLK_RKNN_CBUF>;
++							resets = <&cru SRST_A_RKNN1_BIU>;
+ 							pm_qos = <&qos_npu_m1>;
+ 							#power-domain-cells = <0>;
+ 						};
+@@ -1465,6 +1545,29 @@
+ 			};
+ 		};
+ 
++		jpegd: jpegd@27910000 {
++			compatible = "rockchip,rk3576-jpegd";
++			reg = <0x0 0x27910000 0x0 0x330>;
++			interrupts = <GIC_SPI 331 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cru ACLK_JPEG>, <&cru HCLK_JPEG>;
++			clock-names = "axi", "ahb";
++			resets = <&cru SRST_A_JPEG>, <&cru SRST_H_JPEG>;
++			power-domains = <&power RK3576_PD_VPU>;
++			iommus = <&jpeg_mmu>;
++			status = "disabled";
++		};
++
++		jpeg_mmu: iommu@27910f00 {
++			compatible = "rockchip,rk3576-iommu", "rockchip,rk3568-iommu";
++			reg = <0x0 0x27910f00 0x0 0x100>;
++			interrupts = <GIC_SPI 332 IRQ_TYPE_LEVEL_HIGH>;
++			clocks = <&cru ACLK_JPEG>, <&cru HCLK_JPEG>;
++			clock-names = "aclk", "iface";
++			#iommu-cells = <0>;
++			power-domains = <&power RK3576_PD_VPU>;
++			status = "disabled";
++		};
++
+ 		vop: vop@27d00000 {
+ 			compatible = "rockchip,rk3576-vop";
+ 			reg = <0x0 0x27d00000 0x0 0x3000>, <0x0 0x27d05000 0x0 0x1000>;
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index f2bed2d..d9ac12d 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -253,4 +253,5 @@ source "drivers/cdx/Kconfig"
+ 
+ source "drivers/resctrl/Kconfig"
+ 
++source "drivers/rknpu/Kconfig"
+ endmenu
+diff --git a/drivers/Makefile b/drivers/Makefile
+index 0841ea8..316c4a0 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -198,3 +198,5 @@ obj-y				+= resctrl/
+ 
+ obj-$(CONFIG_DIBS)		+= dibs/
+ obj-$(CONFIG_S390)		+= s390/
++
++obj-y += rknpu/
+diff --git a/drivers/iommu/rockchip-iommu.c b/drivers/iommu/rockchip-iommu.c
+index 1fa3110..141aa88 100644
+--- a/drivers/iommu/rockchip-iommu.c
++++ b/drivers/iommu/rockchip-iommu.c
+@@ -26,6 +26,7 @@
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
+ #include <linux/string_choices.h>
++#include <soc/rockchip/rockchip_iommu.h>
+ 
+ #include "iommu-pages.h"
+ 
+@@ -116,6 +117,11 @@ struct rk_iommu {
+ 	struct list_head node; /* entry in rk_iommu_domain.iommus */
+ 	struct iommu_domain *domain; /* domain to which iommu is attached */
+ 	const struct rk_iommu_ops *rk_ops;
++	/* Serialize a master's fault notification with registration/removal. */
++	spinlock_t fault_lock;
++	struct device *fault_master;
++	rockchip_iommu_fault_handler_t fault_handler;
++	void *fault_data;
+ };
+ 
+ struct rk_iommudata {
+@@ -376,9 +382,23 @@ static bool rk_iommu_is_stall_active(struct rk_iommu *iommu)
+ 	bool active = true;
+ 	int i;
+ 
+-	for (i = 0; i < iommu->num_mmu; i++)
+-		active &= !!(rk_iommu_read(iommu->bases[i], RK_MMU_STATUS) &
+-					   RK_MMU_STATUS_STALL_ACTIVE);
++	for (i = 0; i < iommu->num_mmu; i++) {
++		u32 status = rk_iommu_read(iommu->bases[i], RK_MMU_STATUS);
++
++		/*
++		 * A bank stuck with PAGE_FAULT_ACTIVE but without STALL_ACTIVE
++		 * and with IDLE set has an orphaned fault left by firmware before
++		 * paging was configured.  It cannot enter stall mode but has no
++		 * transaction in flight, so it is already quiescent.  Skip it
++		 * rather than treating it as "not stalled."
++		 */
++		if ((status & RK_MMU_STATUS_PAGE_FAULT_ACTIVE) &&
++		    !(status & RK_MMU_STATUS_STALL_ACTIVE) &&
++		    (status & RK_MMU_STATUS_IDLE))
++			continue;
++
++		active &= !!(status & RK_MMU_STATUS_STALL_ACTIVE);
++	}
+ 
+ 	return active;
+ }
+@@ -431,7 +451,21 @@ static int rk_iommu_enable_stall(struct rk_iommu *iommu)
+ 			       iommu->bases[i] + RK_MMU_COMMAND);
+ 	}
+ 
+-	rk_iommu_command(iommu, RK_MMU_CMD_ENABLE_STALL);
++	/*
++	 * Do not send CMD_ENABLE_STALL to orphaned-fault banks
++	 * (PAGE_FAULT_ACTIVE & !STALL_ACTIVE & IDLE): the command is ignored
++	 * by such a bank but its presence on the shared bus delays the other
++	 * banks from reaching STALL_ACTIVE within the poll timeout.
++	 */
++	for (i = 0; i < iommu->num_mmu; i++) {
++		u32 status = rk_iommu_read(iommu->bases[i], RK_MMU_STATUS);
++
++		if ((status & RK_MMU_STATUS_PAGE_FAULT_ACTIVE) &&
++		    !(status & RK_MMU_STATUS_STALL_ACTIVE) &&
++		    (status & RK_MMU_STATUS_IDLE))
++			continue;
++		writel(RK_MMU_CMD_ENABLE_STALL, iommu->bases[i] + RK_MMU_COMMAND);
++	}
+ 
+ 	ret = readx_poll_timeout(rk_iommu_is_stall_active, iommu, val,
+ 				 val, RK_MMU_POLL_PERIOD_US,
+@@ -616,6 +650,7 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
+ 
+ 		if (int_status & RK_MMU_IRQ_PAGE_FAULT) {
+ 			int flags;
++			unsigned long irqflags;
+ 
+ 			status = rk_iommu_read(iommu->bases[i], RK_MMU_STATUS);
+ 			flags = (status & RK_MMU_STATUS_PAGE_FAULT_IS_WRITE) ?
+@@ -632,11 +667,16 @@ static irqreturn_t rk_iommu_irq(int irq, void *dev_id)
+ 			 * Ignore the return code, though, since we always zap cache
+ 			 * and clear the page fault anyway.
+ 			 */
+-			if (iommu->domain != &rk_identity_domain)
++			spin_lock_irqsave(&iommu->fault_lock, irqflags);
++			if (iommu->fault_handler)
++				iommu->fault_handler(iommu->dev, iova, flags,
++						     iommu->fault_data);
++			else if (iommu->domain != &rk_identity_domain)
+ 				report_iommu_fault(iommu->domain, iommu->dev, iova,
+ 						   flags);
+ 			else
+ 				dev_err(iommu->dev, "Page fault while iommu not attached to domain?\n");
++			spin_unlock_irqrestore(&iommu->fault_lock, irqflags);
+ 
+ 			rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_ZAP_CACHE);
+ 			rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_PAGE_FAULT_DONE);
+@@ -918,6 +958,48 @@ static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
+ 	return data ? data->iommu : NULL;
+ }
+ 
++/**
++ * rockchip_iommu_set_fault_handler() - Set a master's MMU fault notification
++ * @master: master attached to the Rockchip IOMMU
++ * @handler: atomic callback, or NULL to remove the notification
++ * @data: caller-owned callback context
++ *
++ * DMA domains own their IOVA cookies, so they cannot use the legacy domain
++ * fault-handler cookie. Keep notification separate from DMA mapping state.
++ * One master may register per IOMMU; a competing master receives -EBUSY.
++ * The callback runs with MMU clocks held and must not sleep or call this API.
++ * The caller must keep its master/context alive until removal completes.
++ * Removal waits for an in-progress callback through fault_lock.
++ *
++ * Return: zero on success, -ENODEV for an unknown master, or -EBUSY.
++ */
++int rockchip_iommu_set_fault_handler(struct device *master,
++				   rockchip_iommu_fault_handler_t handler, void *data)
++{
++	struct rk_iommu *iommu;
++	unsigned long flags;
++	int ret = 0;
++
++	if (!master)
++		return -ENODEV;
++	iommu = rk_iommu_from_dev(master);
++	if (!iommu)
++		return handler ? -ENODEV : 0;
++
++	spin_lock_irqsave(&iommu->fault_lock, flags);
++	if (iommu->fault_master && iommu->fault_master != master) {
++		ret = -EBUSY;
++	} else {
++		iommu->fault_master = handler ? master : NULL;
++		iommu->fault_handler = handler;
++		iommu->fault_data = handler ? data : NULL;
++	}
++	spin_unlock_irqrestore(&iommu->fault_lock, flags);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_set_fault_handler);
++
+ /* Must be called with iommu powered on and attached */
+ static void rk_iommu_disable(struct rk_iommu *iommu)
+ {
+@@ -1079,6 +1161,101 @@ static int rk_iommu_attach_device(struct iommu_domain *domain,
+ 	return ret;
+ }
+ 
++/**
++ * rockchip_iommu_reset() - Restore paging for a quiesced Rockchip master
++ * @dev: master attached to a Rockchip paging domain
++ *
++ * The caller must stop every master sharing this IOMMU, disable its IRQs,
++ * and serialize domain attachment and recovery. This function may sleep.
++ * It preserves the page tables and reports clock and MMU handshake failures.
++ *
++ * Return: zero on success, or a negative error on recovery failure.
++ */
++int rockchip_iommu_reset(struct device *dev)
++{
++	struct rk_iommu_domain *rk_domain;
++	struct rk_iommu *iommu;
++	int ret, err, i;
++	u32 auto_gate;
++
++	if (!dev)
++		return -ENODEV;
++	iommu = rk_iommu_from_dev(dev);
++
++	if (!iommu || !iommu->domain ||
++	    iommu->domain == &rk_identity_domain)
++		return -ENODEV;
++
++	ret = pm_runtime_resume_and_get(iommu->dev);
++	if (ret < 0)
++		return ret;
++
++	ret = clk_bulk_enable(iommu->num_clocks, iommu->clocks);
++	if (ret)
++		goto out_pm;
++
++	for (i = 0; i < iommu->num_mmu; i++)
++		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, 0);
++
++	ret = rk_iommu_enable_stall(iommu);
++	if (ret)
++		goto out_stall;
++	ret = rk_iommu_disable_paging(iommu);
++	if (ret)
++		goto out_stall;
++	ret = rk_iommu_force_reset(iommu);
++	if (ret)
++		goto out_stall;
++
++	rk_domain = to_rk_domain(iommu->domain);
++	for (i = 0; i < iommu->num_mmu; i++) {
++		rk_iommu_write(iommu->bases[i], RK_MMU_DTE_ADDR,
++			       iommu->rk_ops->mk_dtentries(rk_domain->dt_dma));
++		rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_ZAP_CACHE);
++		auto_gate = rk_iommu_read(iommu->bases[i], RK_MMU_AUTO_GATING);
++		auto_gate |= DISABLE_FETCH_DTE_TIME_LIMIT;
++		rk_iommu_write(iommu->bases[i], RK_MMU_AUTO_GATING, auto_gate);
++	}
++	ret = rk_iommu_enable_paging(iommu);
++
++out_stall:
++	err = rk_iommu_disable_stall(iommu);
++	if (!ret)
++		ret = err;
++	if (!ret)
++		for (i = 0; i < iommu->num_mmu; i++)
++			rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, RK_MMU_IRQ_MASK);
++	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
++out_pm:
++	pm_runtime_put(iommu->dev);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_reset);
++
++/**
++ * rockchip_iommu_mask_irq() - Mask a Rockchip master's MMU fault interrupts
++ * @dev: master whose active fault handler is being called
++ *
++ * Only call from the domain fault callback in rk_iommu_irq(), which holds
++ * the runtime PM and clock references required for register access.
++ */
++void rockchip_iommu_mask_irq(struct device *dev)
++{
++	struct rk_iommu *iommu;
++	int i;
++
++	if (WARN_ON_ONCE(!dev))
++		return;
++	iommu = rk_iommu_from_dev(dev);
++	if (WARN_ON_ONCE(!iommu))
++		return;
++
++	for (i = 0; i < iommu->num_mmu; i++)
++		rk_iommu_write(iommu->bases[i], RK_MMU_INT_MASK, 0);
++}
++EXPORT_SYMBOL_GPL(rockchip_iommu_mask_irq);
++
+ static struct iommu_domain *rk_iommu_domain_alloc_paging(struct device *dev)
+ {
+ 	struct rk_iommu_domain *rk_domain;
+@@ -1227,6 +1404,7 @@ static int rk_iommu_probe(struct platform_device *pdev)
+ 		return -ENOMEM;
+ 
+ 	iommu->domain = &rk_identity_domain;
++	spin_lock_init(&iommu->fault_lock);
+ 
+ 	platform_set_drvdata(pdev, iommu);
+ 	iommu->dev = dev;
+diff --git a/drivers/media/platform/rockchip/Kconfig b/drivers/media/platform/rockchip/Kconfig
+index ba401d3..853016f 100644
+--- a/drivers/media/platform/rockchip/Kconfig
++++ b/drivers/media/platform/rockchip/Kconfig
+@@ -6,3 +6,5 @@ source "drivers/media/platform/rockchip/rga/Kconfig"
+ source "drivers/media/platform/rockchip/rkcif/Kconfig"
+ source "drivers/media/platform/rockchip/rkisp1/Kconfig"
+ source "drivers/media/platform/rockchip/rkvdec/Kconfig"
++source "drivers/media/platform/rockchip/rkjpegd/Kconfig"
++source "drivers/media/platform/rockchip/mpp/Kconfig"
+diff --git a/drivers/media/platform/rockchip/Makefile b/drivers/media/platform/rockchip/Makefile
+index 0e0b2cb..b40c3d3 100644
+--- a/drivers/media/platform/rockchip/Makefile
++++ b/drivers/media/platform/rockchip/Makefile
+@@ -3,3 +3,5 @@ obj-y += rga/
+ obj-y += rkcif/
+ obj-y += rkisp1/
+ obj-y += rkvdec/
++obj-y += rkjpegd/
++obj-y += mpp/
+diff --git a/drivers/pmdomain/rockchip/pm-domains.c b/drivers/pmdomain/rockchip/pm-domains.c
+index 6eca21e..8643d73 100644
+--- a/drivers/pmdomain/rockchip/pm-domains.c
++++ b/drivers/pmdomain/rockchip/pm-domains.c
+@@ -18,6 +18,7 @@
+ #include <linux/of_address.h>
+ #include <linux/of_clk.h>
+ #include <linux/clk.h>
++#include <linux/reset.h>
+ #include <linux/regmap.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/mfd/syscon.h>
+@@ -59,6 +60,7 @@ struct rockchip_domain_info {
+ 	u32 pwr_offset;
+ 	u32 mem_offset;
+ 	u32 req_offset;
++	u32 delay_us;
+ };
+ 
+ struct rockchip_pmu_info {
+@@ -101,6 +103,7 @@ struct rockchip_pm_domain {
+ 	struct clk_bulk_data *clks;
+ 	struct device_node *node;
+ 	struct regulator *supply;
++	struct reset_control *resets;
+ };
+ 
+ struct rockchip_pmu {
+@@ -185,7 +188,7 @@ struct rockchip_pmu {
+ 	.need_regulator = regulator,			\
+ }
+ 
+-#define DOMAIN_M_O_R_G(_name, p_offset, pwr, status, m_offset, m_status, r_status, r_offset, req, idle, ack, g_mask, wakeup)	\
++#define DOMAIN_M_O_R_G(_name, p_offset, pwr, status, m_offset, m_status, r_status, r_offset, req, idle, ack, g_mask, delay, wakeup)	\
+ {							\
+ 	.name = _name,					\
+ 	.pwr_offset = p_offset,				\
+@@ -200,6 +203,7 @@ struct rockchip_pmu {
+ 	.req_mask = (req),				\
+ 	.idle_mask = (idle),				\
+ 	.clk_ungate_mask = (g_mask),			\
++	.delay_us = (delay),				\
+ 	.ack_mask = (ack),				\
+ 	.active_wakeup = wakeup,			\
+ }
+@@ -258,8 +262,8 @@ struct rockchip_pmu {
+ #define DOMAIN_RK3568(name, pwr, req, wakeup, regulator)		\
+ 	DOMAIN_M_R(name, pwr, pwr, req, req, req, wakeup, regulator)
+ 
+-#define DOMAIN_RK3576(name, p_offset, pwr, status, r_status, r_offset, req, idle, g_mask, wakeup)	\
+-	DOMAIN_M_O_R_G(name, p_offset, pwr, status, 0, r_status, r_status, r_offset, req, idle, idle, g_mask, wakeup)
++#define DOMAIN_RK3576(name, p_offset, pwr, status, r_status, r_offset, req, idle, g_mask, delay, wakeup)	\
++	DOMAIN_M_O_R_G(name, p_offset, pwr, status, 0, r_status, r_status, r_offset, req, idle, idle, g_mask, delay, wakeup)
+ 
+ /*
+  * Dynamic Memory Controller may need to coordinate with us -- see
+@@ -556,12 +560,10 @@ static int rockchip_pmu_domain_mem_reset(struct rockchip_pm_domain *pd)
+ 
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_chain_on, pd, is_on,
+ 					is_on == true, 0, 10000);
+-	if (ret) {
+-		dev_err(pmu->dev,
+-			"failed to get chain status '%s', target_on=1, val=%d\n",
+-			genpd->name, is_on);
+-		goto error;
+-	}
++	if (ret)
++		dev_warn_ratelimited(pmu->dev,
++			"chain status '%s' not ready, resetting mem anyway\n",
++			genpd->name);
+ 
+ 	udelay(20);
+ 
+@@ -571,12 +573,10 @@ static int rockchip_pmu_domain_mem_reset(struct rockchip_pm_domain *pd)
+ 
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_mem_on, pd, is_on,
+ 					is_on == false, 0, 10000);
+-	if (ret) {
+-		dev_err(pmu->dev,
+-			"failed to get mem status '%s', target_on=0, val=%d\n",
+-			genpd->name, is_on);
+-		goto error;
+-	}
++	if (ret)
++		dev_warn_ratelimited(pmu->dev,
++			"mem status '%s' stuck on during reset, continuing\n",
++			genpd->name);
+ 
+ 	regmap_write(pmu->regmap, pmu->info->mem_pwr_offset + pd->info->pwr_offset,
+ 		     pd->info->pwr_w_mask);
+@@ -584,14 +584,12 @@ static int rockchip_pmu_domain_mem_reset(struct rockchip_pm_domain *pd)
+ 
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_mem_on, pd, is_on,
+ 					is_on == true, 0, 10000);
+-	if (ret) {
+-		dev_err(pmu->dev,
+-			"failed to get mem status '%s', target_on=1, val=%d\n",
+-			genpd->name, is_on);
+-	}
++	if (ret)
++		dev_warn_ratelimited(pmu->dev,
++			"mem status '%s' not back on after reset, continuing\n",
++			genpd->name);
+ 
+-error:
+-	return ret;
++	return 0;
+ }
+ 
+ static int rockchip_do_pmu_set_power_domain(struct rockchip_pm_domain *pd,
+@@ -626,7 +624,6 @@ static int rockchip_do_pmu_set_power_domain(struct rockchip_pm_domain *pd,
+ 			return ret;
+ 	}
+ 
+-
+ 	ret = readx_poll_timeout_atomic(rockchip_pmu_domain_is_on, pd, is_on,
+ 					is_on == on, 0, 10000);
+ 	if (ret) {
+@@ -644,6 +641,34 @@ static int rockchip_do_pmu_set_power_domain(struct rockchip_pm_domain *pd,
+ 	return 0;
+ }
+ 
++/*
++ * KILN: arm the RK3576 NPU core on power-on. On a mainline kernel the NPU core
++ * register block (base+0x0) is unreadable from a later userspace ioctl -- the
++ * vendor rknpu GET_HW_VERSION async-SErrors / hangs the bus -- UNLESS it is
++ * touched here, in the power-domain power-on path right after the BIU reset. The
++ * vendor BSP kernel does an equivalent access during the NPU power transition;
++ * without it the core comes up "on" but dead. Read the version register and
++ * cycle the MMU bank DTE regs so the core comes up armed. Scoped to npu0.
++ */
++static void rk3576_npu_pd_arm(struct rockchip_pm_domain *pd, bool power_on)
++{
++	static void __iomem *npu0_base;
++
++	if (!power_on || strcmp(pd->genpd.name, "npu0"))
++		return;
++	if (!npu0_base)
++		npu0_base = ioremap(0x27700000, 0x4000);
++	if (!npu0_base)
++		return;
++	readl(npu0_base + 0x0);			/* pc VERSION -- the arming access */
++	writel(0xdeadb000, npu0_base + 0x2000);	/* MMU bank0 DTE_ADDR */
++	readl(npu0_base + 0x2000);
++	writel(0xdeadb000, npu0_base + 0x2100);	/* MMU bank1 DTE_ADDR */
++	readl(npu0_base + 0x2100);
++	writel(0, npu0_base + 0x2000);
++	writel(0, npu0_base + 0x2100);
++}
++
+ static int rockchip_pd_power(struct rockchip_pm_domain *pd, bool power_on)
+ {
+ 	struct rockchip_pmu *pmu = pd->pmu;
+@@ -681,7 +706,18 @@ static int rockchip_pd_power(struct rockchip_pm_domain *pd, bool power_on)
+ 		if (ret < 0)
+ 			goto out;
+ 
++		if (pd->info->delay_us)
++			udelay(pd->info->delay_us);
++
++		if (pd->resets) {
++			reset_control_assert(pd->resets);
++			udelay(10);
++			reset_control_deassert(pd->resets);
++		}
++
+ 		rockchip_pmu_restore_qos(pd);
++
++		rk3576_npu_pd_arm(pd, power_on);
+ 	}
+ 
+ out:
+@@ -743,6 +779,72 @@ static int rockchip_pd_power_off(struct generic_pm_domain *domain)
+ 	return ret;
+ }
+ 
++/**
++ * rockchip_pmu_idle_request() - Request bus idle for a powered Rockchip domain
++ * @dev: device attached to exactly one Rockchip power domain
++ * @idle: true to request idle, false to release the request
++ *
++ * The caller must stop all masters in the domain and keep runtime PM references
++ * and the engine clocks held across the complete idle/reset/unidle sequence.
++ * The device must remain attached to its domain throughout that sequence.
++ * This function may sleep and must not be called from a PM domain callback.
++ * It neither powers the domain nor resets hardware. A successful idle request
++ * remains asserted until the caller explicitly releases it. A failed idle
++ * handshake may also leave the request asserted; the caller must try to release
++ * it before unwinding its runtime PM and clock references.
++ *
++ * Return: zero on success, or a negative error if the domain is unsupported,
++ * powered off, its clocks cannot be enabled, or the idle handshake times out.
++ */
++int rockchip_pmu_idle_request(struct device *dev, bool idle)
++{
++	struct generic_pm_domain *genpd;
++	struct rockchip_pm_domain *pd;
++	struct rockchip_pmu *pmu;
++	int ret;
++
++	if (IS_ERR_OR_NULL(dev) || IS_ERR_OR_NULL(dev->pm_domain))
++		return -ENODEV;
++
++	if (!dev->of_node ||
++	    of_count_phandle_with_args(dev->of_node, "power-domains",
++				      "#power-domain-cells") != 1)
++		return -EOPNOTSUPP;
++
++	/* This also validates that pm_domain really belongs to the genpd core. */
++	if (!dev_pm_genpd_is_on(dev))
++		return -EHOSTDOWN;
++
++	genpd = pd_to_genpd(dev->pm_domain);
++	if (genpd->power_on != rockchip_pd_power_on)
++		return -EOPNOTSUPP;
++
++	pd = to_rockchip_pd(genpd);
++	if (!pd->info->req_mask)
++		return -EOPNOTSUPP;
++	pmu = pd->pmu;
++
++	guard(mutex)(&pmu->mutex);
++
++	/* Idle-only domains have no independent power-status bit to recheck. */
++	if ((pd->info->status_mask || pd->info->repair_status_mask) &&
++	    !rockchip_pmu_domain_is_on(pd))
++		return -EHOSTDOWN;
++
++	/* These clocks were prepared when the domain was registered. */
++	ret = clk_bulk_enable(pd->num_clks, pd->clks);
++	if (ret)
++		return ret;
++
++	rockchip_pmu_ungate_clk(pd, true);
++	ret = rockchip_pmu_set_idle_request(pd, idle);
++	rockchip_pmu_ungate_clk(pd, false);
++	clk_bulk_disable(pd->num_clks, pd->clks);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(rockchip_pmu_idle_request);
++
+ static int rockchip_pd_attach_dev(struct generic_pm_domain *genpd,
+ 				  struct device *dev)
+ {
+@@ -861,6 +963,14 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
+ 	if (error)
+ 		goto err_put_clocks;
+ 
++	pd->resets = of_reset_control_array_get_optional_exclusive(node);
++	if (IS_ERR(pd->resets)) {
++		error = PTR_ERR(pd->resets);
++		dev_err(pmu->dev, "%pOFn: failed to get resets: %d\n", node, error);
++		pd->resets = NULL;
++		goto err_unprepare_clocks;
++	}
++
+ 	pd->num_qos = of_count_phandle_with_args(node, "pm_qos",
+ 						 NULL);
+ 
+@@ -928,6 +1038,7 @@ err_unprepare_clocks:
+ 	clk_bulk_unprepare(pd->num_clks, pd->clks);
+ err_put_clocks:
+ 	clk_bulk_put(pd->num_clks, pd->clks);
++	reset_control_put(pd->resets);
+ 	return error;
+ }
+ 
+@@ -1308,25 +1419,26 @@ static const struct rockchip_domain_info rk3568_pm_domains[] = {
+ };
+ 
+ static const struct rockchip_domain_info rk3576_pm_domains[] = {
+-	[RK3576_PD_NPU]		= DOMAIN_RK3576("npu",    0x0, BIT(0),  BIT(0), 0,       0x0, 0,       0,       0,       false),
+-	[RK3576_PD_NVM]		= DOMAIN_RK3576("nvm",    0x0, BIT(6),  0,      BIT(6),  0x4, BIT(2),  BIT(18), BIT(2),  false),
+-	[RK3576_PD_SDGMAC]	= DOMAIN_RK3576("sdgmac", 0x0, BIT(7),  0,      BIT(7),  0x4, BIT(1),  BIT(17), 0x6,     false),
+-	[RK3576_PD_AUDIO]	= DOMAIN_RK3576("audio",  0x0, BIT(8),  0,      BIT(8),  0x4, BIT(0),  BIT(16), BIT(0),  false),
+-	[RK3576_PD_PHP]		= DOMAIN_RK3576("php",    0x0, BIT(9),  0,      BIT(9),  0x0, BIT(15), BIT(15), BIT(15), false),
+-	[RK3576_PD_SUBPHP]	= DOMAIN_RK3576("subphp", 0x0, BIT(10), 0,      BIT(10), 0x0, 0,       0,       0,       false),
+-	[RK3576_PD_VOP]		= DOMAIN_RK3576("vop",    0x0, BIT(11), 0,      BIT(11), 0x0, 0x6000,  0x6000,  0x6000,  false),
+-	[RK3576_PD_VO1]		= DOMAIN_RK3576("vo1",    0x0, BIT(14), 0,      BIT(14), 0x0, BIT(12), BIT(12), 0x7000,  false),
+-	[RK3576_PD_VO0]		= DOMAIN_RK3576("vo0",    0x0, BIT(15), 0,      BIT(15), 0x0, BIT(11), BIT(11), 0x6800,  false),
+-	[RK3576_PD_USB]		= DOMAIN_RK3576("usb",    0x4, BIT(0),  0,      BIT(16), 0x0, BIT(10), BIT(10), 0x6400,  true),
+-	[RK3576_PD_VI]		= DOMAIN_RK3576("vi",     0x4, BIT(1),  0,      BIT(17), 0x0, BIT(9),  BIT(9),  BIT(9),  false),
+-	[RK3576_PD_VEPU0]	= DOMAIN_RK3576("vepu0",  0x4, BIT(2),  0,      BIT(18), 0x0, BIT(7),  BIT(7),  0x280,   false),
+-	[RK3576_PD_VEPU1]	= DOMAIN_RK3576("vepu1",  0x4, BIT(3),  0,      BIT(19), 0x0, BIT(8),  BIT(8),  BIT(8),  false),
+-	[RK3576_PD_VDEC]	= DOMAIN_RK3576("vdec",   0x4, BIT(4),  0,      BIT(20), 0x0, BIT(6),  BIT(6),  BIT(6),  false),
+-	[RK3576_PD_VPU]		= DOMAIN_RK3576("vpu",    0x4, BIT(5),  0,      BIT(21), 0x0, BIT(5),  BIT(5),  BIT(5),  false),
+-	[RK3576_PD_NPUTOP]	= DOMAIN_RK3576("nputop", 0x4, BIT(6),  0,      BIT(22), 0x0, 0x18,    0x18,    0x18,    false),
+-	[RK3576_PD_NPU0]	= DOMAIN_RK3576("npu0",   0x4, BIT(7),  0,      BIT(23), 0x0, BIT(1),  BIT(1),  0x1a,    false),
+-	[RK3576_PD_NPU1]	= DOMAIN_RK3576("npu1",   0x4, BIT(8),  0,      BIT(24), 0x0, BIT(2),  BIT(2),  0x1c,    false),
+-	[RK3576_PD_GPU]		= DOMAIN_RK3576("gpu",    0x4, BIT(9),  0,      BIT(25), 0x0, BIT(0),  BIT(0),  BIT(0),  false),
++	/*                                               name    p_offset pwr      status  r_status r_offset req      idle     g_mask   delay wakeup */
++	[RK3576_PD_NPU]		= DOMAIN_RK3576("npu",    0x0, BIT(0),  BIT(0), 0,       0x0, 0,       0,       0,       0,    false),
++	[RK3576_PD_NVM]		= DOMAIN_RK3576("nvm",    0x0, BIT(6),  0,      BIT(6),  0x4, BIT(2),  BIT(18), BIT(2),  0,    false),
++	[RK3576_PD_SDGMAC]	= DOMAIN_RK3576("sdgmac", 0x0, BIT(7),  0,      BIT(7),  0x4, BIT(1),  BIT(17), 0x6,     0,    false),
++	[RK3576_PD_AUDIO]	= DOMAIN_RK3576("audio",  0x0, BIT(8),  0,      BIT(8),  0x4, BIT(0),  BIT(16), BIT(0),  0,    false),
++	[RK3576_PD_PHP]		= DOMAIN_RK3576("php",    0x0, BIT(9),  0,      BIT(9),  0x0, BIT(15), BIT(15), BIT(15), 0,    false),
++	[RK3576_PD_SUBPHP]	= DOMAIN_RK3576("subphp", 0x0, BIT(10), 0,      BIT(10), 0x0, 0,       0,       0,       0,    false),
++	[RK3576_PD_VOP]		= DOMAIN_RK3576("vop",    0x0, BIT(11), 0,      BIT(11), 0x0, 0x6000,  0x6000,  0x6000,  0,    false),
++	[RK3576_PD_VO1]		= DOMAIN_RK3576("vo1",    0x0, BIT(14), 0,      BIT(14), 0x0, BIT(12), BIT(12), 0x7000,  0,    false),
++	[RK3576_PD_VO0]		= DOMAIN_RK3576("vo0",    0x0, BIT(15), 0,      BIT(15), 0x0, BIT(11), BIT(11), 0x6800,  0,    false),
++	[RK3576_PD_USB]		= DOMAIN_RK3576("usb",    0x4, BIT(0),  0,      BIT(16), 0x0, BIT(10), BIT(10), 0x6400,  0,    true),
++	[RK3576_PD_VI]		= DOMAIN_RK3576("vi",     0x4, BIT(1),  0,      BIT(17), 0x0, BIT(9),  BIT(9),  BIT(9),  0,    false),
++	[RK3576_PD_VEPU0]	= DOMAIN_RK3576("vepu0",  0x4, BIT(2),  0,      BIT(18), 0x0, BIT(7),  BIT(7),  0x280,   0,    false),
++	[RK3576_PD_VEPU1]	= DOMAIN_RK3576("vepu1",  0x4, BIT(3),  0,      BIT(19), 0x0, BIT(8),  BIT(8),  BIT(8),  0,    false),
++	[RK3576_PD_VDEC]	= DOMAIN_RK3576("vdec",   0x4, BIT(4),  0,      BIT(20), 0x0, BIT(6),  BIT(6),  BIT(6),  0,    false),
++	[RK3576_PD_VPU]		= DOMAIN_RK3576("vpu",    0x4, BIT(5),  0,      BIT(21), 0x0, BIT(5),  BIT(5),  BIT(5),  0,    false),
++	[RK3576_PD_NPUTOP]	= DOMAIN_RK3576("nputop", 0x4, BIT(6),  0,      BIT(22), 0x0, 0x18,    0x18,    0x18,    15,   false),
++	[RK3576_PD_NPU0]	= DOMAIN_RK3576("npu0",   0x4, BIT(7),  0,      BIT(23), 0x0, BIT(1),  BIT(1),  0x1a,    15,   false),
++	[RK3576_PD_NPU1]	= DOMAIN_RK3576("npu1",   0x4, BIT(8),  0,      BIT(24), 0x0, BIT(2),  BIT(2),  0x1c,    15,   false),
++	[RK3576_PD_GPU]		= DOMAIN_RK3576("gpu",    0x4, BIT(9),  0,      BIT(25), 0x0, BIT(0),  BIT(0),  BIT(0),  0,    false),
+ };
+ 
+ static const struct rockchip_domain_info rk3588_pm_domains[] = {
+diff --git a/drivers/video/Kconfig b/drivers/video/Kconfig
+index a7144d2..678e6c7 100644
+--- a/drivers/video/Kconfig
++++ b/drivers/video/Kconfig
+@@ -92,4 +92,6 @@ endif
+ 
+ source "drivers/gpu/trace/Kconfig"
+ 
++source "drivers/video/rockchip/Kconfig"
++
+ endmenu
+diff --git a/drivers/video/Makefile b/drivers/video/Makefile
+index ffbac43..dfd6d62 100644
+--- a/drivers/video/Makefile
++++ b/drivers/video/Makefile
+@@ -21,3 +21,5 @@ obj-$(CONFIG_VIDEOMODE_HELPERS) += display_timing.o videomode.o
+ ifeq ($(CONFIG_OF),y)
+ obj-$(CONFIG_VIDEOMODE_HELPERS) += of_display_timing.o of_videomode.o
+ endif
++
++obj-y += rockchip/
+diff --git a/drivers/video/rockchip/Kconfig b/drivers/video/rockchip/Kconfig
+new file mode 100644
+index 0000000..39e01f1
+--- /dev/null
++++ b/drivers/video/rockchip/Kconfig
+@@ -0,0 +1 @@
++source "drivers/video/rockchip/rga3/Kconfig"
+diff --git a/drivers/video/rockchip/Makefile b/drivers/video/rockchip/Makefile
+new file mode 100644
+index 0000000..2bd1b7e
+--- /dev/null
++++ b/drivers/video/rockchip/Makefile
+@@ -0,0 +1 @@
++obj-y += rga3/
+diff --git a/include/soc/rockchip/pm_domains.h b/include/soc/rockchip/pm_domains.h
+index 7dbd941..00a1c4a 100644
+--- a/include/soc/rockchip/pm_domains.h
++++ b/include/soc/rockchip/pm_domains.h
+@@ -6,10 +6,16 @@
+ #ifndef __SOC_ROCKCHIP_PM_DOMAINS_H__
+ #define __SOC_ROCKCHIP_PM_DOMAINS_H__
+ 
++#include <linux/errno.h>
++#include <linux/types.h>
++
++struct device;
++
+ #ifdef CONFIG_ROCKCHIP_PM_DOMAINS
+ 
+ int rockchip_pmu_block(void);
+ void rockchip_pmu_unblock(void);
++int rockchip_pmu_idle_request(struct device *dev, bool idle);
+ 
+ #else /* CONFIG_ROCKCHIP_PM_DOMAINS */
+ 
+@@ -20,6 +26,11 @@ static inline int rockchip_pmu_block(void)
+ 
+ static inline void rockchip_pmu_unblock(void) { }
+ 
++static inline int rockchip_pmu_idle_request(struct device *dev, bool idle)
++{
++	return -EOPNOTSUPP;
++}
++
+ #endif /* CONFIG_ROCKCHIP_PM_DOMAINS */
+ 
+ #endif /* __SOC_ROCKCHIP_PM_DOMAINS_H__ */
+diff --git a/include/uapi/linux/rk-mpp.h b/include/uapi/linux/rk-mpp.h
+new file mode 100644
+index 0000000..9a24407
+--- /dev/null
++++ b/include/uapi/linux/rk-mpp.h
+@@ -0,0 +1,82 @@
++/* SPDX-License-Identifier: ((GPL-2.0+ WITH Linux-syscall-note) OR MIT) */
++/*
++ * Rockchip mpp driver
++ * Copyright (C) 2023 Rockchip Electronics Co., Ltd.
++ */
++
++#ifndef _UAPI_RK_MPP_H
++#define _UAPI_RK_MPP_H
++
++#include <linux/types.h>
++
++/* Use 'v' as magic number */
++#define MPP_IOC_MAGIC			'v'
++
++#define MPP_IOC_CFG_V1			_IOW(MPP_IOC_MAGIC, 1, unsigned int)
++#define MPP_IOC_CFG_V2			_IOW(MPP_IOC_MAGIC, 2, unsigned int)
++
++/**
++ * Command type: keep the same as user space
++ */
++enum MPP_DEV_COMMAND_TYPE {
++	MPP_CMD_QUERY_BASE		= 0,
++	MPP_CMD_QUERY_HW_SUPPORT	= MPP_CMD_QUERY_BASE + 0,
++	MPP_CMD_QUERY_HW_ID		= MPP_CMD_QUERY_BASE + 1,
++	MPP_CMD_QUERY_CMD_SUPPORT	= MPP_CMD_QUERY_BASE + 2,
++	MPP_CMD_QUERY_BUTT,
++
++	MPP_CMD_INIT_BASE		= 0x100,
++	MPP_CMD_INIT_CLIENT_TYPE	= MPP_CMD_INIT_BASE + 0,
++	MPP_CMD_INIT_DRIVER_DATA	= MPP_CMD_INIT_BASE + 1,
++	MPP_CMD_INIT_TRANS_TABLE	= MPP_CMD_INIT_BASE + 2,
++	MPP_CMD_INIT_BUTT,
++
++	MPP_CMD_SEND_BASE		= 0x200,
++	MPP_CMD_SET_REG_WRITE		= MPP_CMD_SEND_BASE + 0,
++	MPP_CMD_SET_REG_READ		= MPP_CMD_SEND_BASE + 1,
++	MPP_CMD_SET_REG_ADDR_OFFSET	= MPP_CMD_SEND_BASE + 2,
++	MPP_CMD_SET_RCB_INFO		= MPP_CMD_SEND_BASE + 3,
++	MPP_CMD_SET_SESSION_FD		= MPP_CMD_SEND_BASE + 4,
++	MPP_CMD_SEND_BUTT,
++
++	MPP_CMD_POLL_BASE		= 0x300,
++	MPP_CMD_POLL_HW_FINISH		= MPP_CMD_POLL_BASE + 0,
++	MPP_CMD_POLL_HW_IRQ		= MPP_CMD_POLL_BASE + 1,
++	MPP_CMD_POLL_BUTT,
++
++	MPP_CMD_CONTROL_BASE		= 0x400,
++	MPP_CMD_RESET_SESSION		= MPP_CMD_CONTROL_BASE + 0,
++	MPP_CMD_TRANS_FD_TO_IOVA	= MPP_CMD_CONTROL_BASE + 1,
++	MPP_CMD_RELEASE_FD		= MPP_CMD_CONTROL_BASE + 2,
++	MPP_CMD_SEND_CODEC_INFO		= MPP_CMD_CONTROL_BASE + 3,
++	MPP_CMD_CONTROL_BUTT,
++
++	MPP_CMD_BUTT,
++};
++
++/* define flags for mpp_request */
++#define MPP_FLAGS_MULTI_MSG		(0x00000001)
++#define MPP_FLAGS_LAST_MSG		(0x00000002)
++#define MPP_FLAGS_REG_FD_NO_TRANS	(0x00000004)
++#define MPP_FLAGS_SCL_FD_NO_TRANS	(0x00000008)
++#define MPP_FLAGS_REG_NO_OFFSET		(0x00000010)
++#define MPP_FLAGS_SECURE_MODE		(0x00010000)
++
++/* data common struct for parse out */
++struct mpp_request {
++	__u32 cmd;
++	__u32 flags;
++	__u32 size;
++	__u32 offset;
++	void __user *data;
++};
++
++#define MPP_BAT_MSG_DONE		(0x00000001)
++
++struct mpp_bat_msg {
++	__u64 flag;
++	__u32 fd;
++	__s32 ret;
++};
++
++#endif /* _UAPI_RK_MPP_H */

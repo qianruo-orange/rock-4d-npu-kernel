@@ -6,7 +6,9 @@
 
 当前基线为用户提供的官方 Linux 7.4-rc1 源码归档。完整 Linux 源树及构建产物保留在本机 `/home/qianruo/kbuild/kernels/7.4-rc1/source`，不重复提交到本仓库。适配仓库位于 `/home/qianruo/kbuild/kernels/rock4d-kernel`。
 
-## 当前发布：7.4.0-rc1-npu-rt-full
+板上已验证的最新构建为 [`7.4.0-rc4-npu-rt-full-rkmppdec`](rock4d-linux74/rc4/README.md)。
+
+## 历史发布 `7.4.0-rc1-npu-rt-full`
 
 2026-11-05 构建并部署，运行中：PREEMPT_RT、1000 Hz。四个驱动**内置于内核**：
 
@@ -119,7 +121,9 @@ The baseline is the vendor-provided Linux 7.4-rc1 source archive. The full tree
 and build outputs stay on the build host under
 `/home/qianruo/kbuild/kernels/7.4-rc1/source`.
 
-### Current release: 7.4.0-rc1-npu-rt-full
+The latest build verified on the board is [`7.4.0-rc4-npu-rt-full-rkmppdec`](rock4d-linux74/rc4/README.md).
+
+### Previous release `7.4.0-rc1-npu-rt-full`
 
 Built and deployed on 2026-11-05, running PREEMPT_RT at 1000 Hz. Four drivers are
 **built into the kernel**:
